@@ -10,13 +10,16 @@ import {
   PlayCircle,
   CheckCircle2,
   Radio,
+  Map,
+  Camera,
 } from 'lucide-react';
-import { UserRole } from '../types';
+import { AppView } from '../types';
 
 interface NavbarProps {
-  currentView: UserRole | 'tamper-demo' | 'learning-hub';
-  onSelectView: (view: UserRole | 'tamper-demo' | 'learning-hub') => void;
+  currentView: AppView;
+  onSelectView: (view: AppView) => void;
   onOpenDemoGuide: () => void;
+  onOpenQRScanner?: () => void;
   unreadAlertCount: number;
   latestBlockNumber: number;
 }
@@ -25,6 +28,7 @@ export function Navbar({
   currentView,
   onSelectView,
   onOpenDemoGuide,
+  onOpenQRScanner,
   unreadAlertCount,
   latestBlockNumber,
 }: NavbarProps) {
@@ -94,6 +98,18 @@ export function Navbar({
           </button>
 
           <button
+            onClick={() => onSelectView('apiary-map')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+              currentView === 'apiary-map'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Map className="w-4 h-4" />
+            <span>Apiary Map</span>
+          </button>
+
+          <button
             onClick={() => onSelectView('consumer')}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
               currentView === 'consumer'
@@ -154,8 +170,19 @@ export function Navbar({
           </button>
         </nav>
 
-        {/* Action button: 6-Minute SIH Demo */}
+        {/* Action button: 6-Minute SIH Demo & QR Scanner */}
         <div className="flex items-center gap-2">
+          {onOpenQRScanner && (
+            <button
+              onClick={onOpenQRScanner}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-amber-400 border border-slate-700 font-bold px-3 py-2 rounded-xl text-xs shadow-sm transition-all cursor-pointer"
+              title="Scan Honey Jar QR with Camera or Image"
+            >
+              <Camera className="w-4 h-4 text-amber-400" />
+              <span className="hidden sm:inline">Scan QR</span>
+            </button>
+          )}
+
           <button
             onClick={onOpenDemoGuide}
             className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold px-3 py-2 rounded-xl text-xs shadow-lg shadow-amber-950/30 transition-all cursor-pointer"
@@ -175,6 +202,14 @@ export function Navbar({
           }`}
         >
           🐝 Beekeeper
+        </button>
+        <button
+          onClick={() => onSelectView('apiary-map')}
+          className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold ${
+            currentView === 'apiary-map' ? 'bg-amber-500 text-slate-950' : 'text-slate-300'
+          }`}
+        >
+          🗺️ Apiary Map
         </button>
         <button
           onClick={() => onSelectView('consumer')}

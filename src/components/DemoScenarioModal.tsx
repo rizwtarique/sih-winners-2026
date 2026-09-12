@@ -9,19 +9,19 @@ import {
   Sparkles,
   ArrowRight,
 } from 'lucide-react';
-import { UserRole } from '../types';
+import { AppView } from '../types';
 
 interface DemoScenarioModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onNavigateView: (view: UserRole | 'tamper-demo' | 'learning-hub') => void;
+  onNavigateView: (view: AppView) => void;
 }
 
 interface DemoStep {
   step: number;
   timeWindow: string;
   title: string;
-  targetView: UserRole | 'tamper-demo' | 'learning-hub';
+  targetView: AppView;
   pitchSpeaker: string;
   keyAction: string;
   whyJudgesCare: string;

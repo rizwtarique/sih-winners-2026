@@ -19,8 +19,13 @@ import {
   RotateCcw,
   Sparkles,
   Info,
+  Camera,
+  Printer,
+  Smartphone,
 } from 'lucide-react';
 import { formatHexShort } from '../utils/crypto';
+import { QRCodeCard } from './QRCodeCard';
+import { QRScannerModal } from './QRScannerModal';
 
 interface ConsumerVerificationViewProps {
   batches: HoneyBatch[];
@@ -38,7 +43,8 @@ export function ConsumerVerificationView({
   isTampered,
 }: ConsumerVerificationViewProps) {
   const [copiedHash, setCopiedHash] = useState(false);
-  const [showPrintLabel, setShowPrintLabel] = useState(false);
+  const [showPrintLabel, setShowPrintLabel] = useState(true);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -67,8 +73,17 @@ export function ConsumerVerificationView({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400 hidden md:inline">Switch Batch:</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsScannerOpen(true)}
+            className="flex items-center gap-1.5 text-xs font-black px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-sm transition-all cursor-pointer"
+          >
+            <Camera className="w-4 h-4" />
+            <span>Scan QR Code</span>
+          </button>
+
+          <span className="text-xs text-slate-400 hidden lg:inline">Batch:</span>
           <select
             value={selectedBatch.id}
             onChange={(e) => {
@@ -85,18 +100,19 @@ export function ConsumerVerificationView({
           </select>
 
           <button
+            type="button"
             onClick={() => setShowPrintLabel(!showPrintLabel)}
-            className="text-xs font-bold px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 transition-all cursor-pointer"
+            className="text-xs font-bold px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer"
           >
-            {showPrintLabel ? 'Hide Label' : 'Print Jar Sticker'}
+            {showPrintLabel ? 'Hide Jar Label' : 'Show Jar Label & QR'}
           </button>
         </div>
       </div>
 
-      {/* Printable Jar Label Modal / Drawer */}
+      {/* Printable Jar Label Card with Real Scannable QR */}
       {showPrintLabel && (
-        <div className="bg-amber-50 border-2 border-dashed border-amber-300 p-6 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="space-y-2 text-center sm:text-left">
+        <div className="bg-amber-50/80 border-2 border-dashed border-amber-300 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 shadow-xs">
+          <div className="space-y-2 text-center md:text-left flex-1">
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-200 text-amber-900">
               Jar Packaging Label · 500g Glass Container
             </span>
@@ -107,50 +123,30 @@ export function ConsumerVerificationView({
             <p className="font-mono text-xs font-bold text-slate-900">
               Batch Code: {selectedBatch.batchCode}
             </p>
-            <p className="text-[11px] text-slate-500">
-              Scan with any mobile camera to verify blockchain record & lab certificate.
+            <p className="text-[11px] text-slate-600 max-w-md">
+              Point any mobile camera or Google Lens at the QR code on the right. It encodes a valid, high-resolution verification link to this batch.
             </p>
           </div>
 
-          <div className="bg-white p-3.5 rounded-xl shadow-md border border-amber-200 text-center flex flex-col items-center">
-            {/* SVG Visual QR Code generator */}
-            <div className="w-36 h-36 bg-slate-950 p-2 rounded-lg flex items-center justify-center">
-              <div className="w-full h-full bg-white rounded flex items-center justify-center relative overflow-hidden">
-                {/* SVG pattern representing realistic QR Code */}
-                <svg viewBox="0 0 100 100" className="w-full h-full p-1 fill-slate-950">
-                  <rect x="0" y="0" width="30" height="30" />
-                  <rect x="5" y="5" width="20" height="20" fill="white" />
-                  <rect x="10" y="10" width="10" height="10" />
-
-                  <rect x="70" y="0" width="30" height="30" />
-                  <rect x="75" y="5" width="20" height="20" fill="white" />
-                  <rect x="80" y="10" width="10" height="10" />
-
-                  <rect x="0" y="70" width="30" height="30" />
-                  <rect x="5" y="75" width="20" height="20" fill="white" />
-                  <rect x="10" y="80" width="10" height="10" />
-
-                  {/* QR Data Dots */}
-                  <rect x="35" y="10" width="8" height="8" />
-                  <rect x="50" y="15" width="10" height="6" />
-                  <rect x="40" y="30" width="12" height="12" />
-                  <rect x="15" y="45" width="8" height="12" />
-                  <rect x="30" y="50" width="8" height="8" />
-                  <rect x="45" y="60" width="12" height="6" />
-                  <rect x="70" y="40" width="8" height="8" />
-                  <rect x="85" y="55" width="10" height="10" />
-                  <rect x="65" y="75" width="8" height="8" />
-                  <rect x="80" y="85" width="12" height="8" />
-                  <rect x="40" y="80" width="10" height="10" />
-                </svg>
-              </div>
-            </div>
-            <span className="text-[10px] font-mono font-bold text-slate-800 mt-2">
-              Scan to Verify
-            </span>
+          <div className="shrink-0">
+            <QRCodeCard
+              batch={selectedBatch}
+              size={135}
+              showDetails={true}
+              onSimulateScan={onSelectBatch}
+              className="border-amber-200"
+            />
           </div>
         </div>
       )}
+
+      {/* Camera / Image QR Scanner Modal */}
+      <QRScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        batches={batches}
+        onSelectBatch={onSelectBatch}
+      />
 
       {/* Main Verification Status Card */}
       <div

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Hive,
   HoneyBatch,
@@ -22,7 +22,14 @@ import {
   Info,
   Layers,
   MapPin,
+  FileDown,
+  FileSpreadsheet,
+  Map,
 } from 'lucide-react';
+import { HiveTelemetryChart } from './HiveTelemetryChart';
+import { AIHiveHealthSummary } from './AIHiveHealthSummary';
+import { ComplianceExportModal } from './ComplianceExportModal';
+import { QRLabelModal } from './QRLabelModal';
 
 interface BeekeeperViewProps {
   hives: Hive[];
@@ -32,6 +39,8 @@ interface BeekeeperViewProps {
   onAnchorBatch: (batchId: string) => void;
   onToggleSimulatedStream: () => void;
   isStreamActive: boolean;
+  initialSelectedHiveId?: string;
+  onNavigateToApiaryMap?: () => void;
 }
 
 export function BeekeeperView({
@@ -42,9 +51,22 @@ export function BeekeeperView({
   onAnchorBatch,
   onToggleSimulatedStream,
   isStreamActive,
+  initialSelectedHiveId,
+  onNavigateToApiaryMap,
 }: BeekeeperViewProps) {
-  const [selectedHiveId, setSelectedHiveId] = useState<string>(hives[0]?.id || '');
+  const [selectedHiveId, setSelectedHiveId] = useState<string>(
+    initialSelectedHiveId || hives[0]?.id || ''
+  );
   const [isHarvestModalOpen, setIsHarvestModalOpen] = useState(false);
+  const [isComplianceModalOpen, setIsComplianceModalOpen] = useState(false);
+  const [qrModalBatch, setQrModalBatch] = useState<HoneyBatch | null>(null);
+
+  // Sync selectedHiveId if initialSelectedHiveId changes
+  useEffect(() => {
+    if (initialSelectedHiveId) {
+      setSelectedHiveId(initialSelectedHiveId);
+    }
+  }, [initialSelectedHiveId]);
 
   // Harvest form state
   const [harvestHiveId, setHarvestHiveId] = useState(hives[0]?.id || '');
@@ -157,6 +179,26 @@ export function BeekeeperView({
           </button>
 
           <button
+            id="open-compliance-export-btn"
+            onClick={() => setIsComplianceModalOpen(true)}
+            className="flex items-center gap-2 bg-slate-950/90 hover:bg-slate-950 text-white font-bold px-3.5 py-2.5 rounded-xl text-xs shadow-sm transition-all cursor-pointer border border-slate-900"
+          >
+            <FileDown className="w-4 h-4 text-amber-400" />
+            <span>Export Compliance</span>
+          </button>
+
+          {onNavigateToApiaryMap && (
+            <button
+              id="view-apiary-map-btn"
+              onClick={onNavigateToApiaryMap}
+              className="flex items-center gap-2 bg-slate-950 text-amber-400 hover:bg-slate-900 font-bold px-3.5 py-2.5 rounded-xl text-xs shadow-sm transition-all cursor-pointer border border-slate-900"
+            >
+              <Map className="w-4 h-4" />
+              <span>Apiary Grid Map</span>
+            </button>
+          )}
+
+          <button
             onClick={() => setIsHarvestModalOpen(true)}
             className="flex items-center gap-2 bg-slate-950 text-amber-400 hover:bg-slate-900 font-bold px-4 py-2.5 rounded-xl text-xs shadow-md transition-all cursor-pointer"
           >
@@ -175,7 +217,15 @@ export function BeekeeperView({
               <Layers className="w-4 h-4 text-amber-600" />
               <span>Monitored Bee Boxes ({hives.length})</span>
             </h2>
-            <span className="text-xs text-slate-500 font-medium">ESP32 + MQTT</span>
+            {onNavigateToApiaryMap && (
+              <button
+                onClick={onNavigateToApiaryMap}
+                className="text-xs text-amber-700 hover:text-amber-800 font-bold flex items-center gap-1 hover:underline cursor-pointer"
+              >
+                <Map className="w-3.5 h-3.5" />
+                <span>Spatial Map</span>
+              </button>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -390,6 +440,17 @@ export function BeekeeperView({
             </div>
           </div>
 
+          {/* 24-Hour Telemetry Trend Charts (Recharts visualization for each hive) */}
+          <HiveTelemetryChart
+            hives={hives}
+            selectedHive={selectedHive}
+            onSelectHive={(id) => setSelectedHiveId(id)}
+            onExportCompliance={() => setIsComplianceModalOpen(true)}
+          />
+
+          {/* AI Hive Health Summary (Gemini API Powered) */}
+          <AIHiveHealthSummary hive={selectedHive} />
+
           {/* AI Colony Doctor & Health Assessment (PRD Section 22 / Rule 11) */}
           <div
             className={`p-5 rounded-2xl border shadow-sm space-y-4 ${
@@ -504,12 +565,22 @@ export function BeekeeperView({
                 </p>
               </div>
 
-              <button
-                onClick={() => setIsHarvestModalOpen(true)}
-                className="text-xs font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1"
-              >
-                + New Harvest
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsComplianceModalOpen(true)}
+                  className="text-xs font-bold text-slate-700 hover:text-slate-950 flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 shadow-2xs cursor-pointer transition-colors"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Export Logs</span>
+                </button>
+
+                <button
+                  onClick={() => setIsHarvestModalOpen(true)}
+                  className="text-xs font-bold text-amber-700 hover:text-amber-800 flex items-center gap-1 cursor-pointer"
+                >
+                  + New Harvest
+                </button>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -554,7 +625,7 @@ export function BeekeeperView({
                     )}
 
                     <button
-                      onClick={() => onSelectBatchForQR(batch)}
+                      onClick={() => setQrModalBatch(batch)}
                       className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white flex items-center gap-1.5 cursor-pointer"
                     >
                       <QrCode className="w-3.5 h-3.5 text-amber-400" />
@@ -567,6 +638,19 @@ export function BeekeeperView({
           </div>
         </div>
       </div>
+
+      {/* Modal: View & Print QR Packaging Label */}
+      {qrModalBatch && (
+        <QRLabelModal
+          isOpen={!!qrModalBatch}
+          onClose={() => setQrModalBatch(null)}
+          batch={qrModalBatch}
+          onSimulateScan={(batch) => {
+            setQrModalBatch(null);
+            onSelectBatchForQR(batch);
+          }}
+        />
+      )}
 
       {/* Modal: Log New Harvest */}
       {isHarvestModalOpen && (
@@ -694,6 +778,15 @@ export function BeekeeperView({
           </div>
         </div>
       )}
+
+      {/* Modal: Export Regulatory Compliance (PDF / CSV) */}
+      <ComplianceExportModal
+        isOpen={isComplianceModalOpen}
+        onClose={() => setIsComplianceModalOpen(false)}
+        hives={hives}
+        batches={batches}
+        currentSelectedHiveId={selectedHiveId}
+      />
     </div>
   );
 }

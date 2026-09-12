@@ -1,25 +1,56 @@
 import React, { useState, useEffect } from 'react';
-import { Hive, HoneyBatch, AlertItem, QualityCertificate, UserRole } from './types';
+import { Hive, HoneyBatch, AlertItem, QualityCertificate, UserRole, AppView } from './types';
 import { INITIAL_HIVES, INITIAL_BATCHES, INITIAL_ALERTS } from './data/mockData';
 import { Navbar } from './components/Navbar';
 import { BeekeeperView } from './components/BeekeeperView';
+import { ApiaryMapView } from './components/ApiaryMapView';
 import { ConsumerVerificationView } from './components/ConsumerVerificationView';
 import { LabCertifierView } from './components/LabCertifierView';
 import { AdminKvicView } from './components/AdminKvicView';
 import { InteractiveTamperDemo } from './components/InteractiveTamperDemo';
 import { LearningHubView } from './components/LearningHubView';
 import { DemoScenarioModal } from './components/DemoScenarioModal';
+import { QRScannerModal } from './components/QRScannerModal';
 import { computeBatchCommitmentHash } from './utils/crypto';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<UserRole | 'tamper-demo' | 'learning-hub'>('beekeeper');
+  const [currentView, setCurrentView] = useState<AppView>('beekeeper');
   const [hives, setHives] = useState<Hive[]>(INITIAL_HIVES);
   const [batches, setBatches] = useState<HoneyBatch[]>(INITIAL_BATCHES);
   const [alerts, setAlerts] = useState<AlertItem[]>(INITIAL_ALERTS);
   const [selectedBatchId, setSelectedBatchId] = useState<string>(INITIAL_BATCHES[0].id);
+  const [selectedHiveIdForTelemetry, setSelectedHiveIdForTelemetry] = useState<string>('');
   const [isDemoGuideOpen, setIsDemoGuideOpen] = useState(false);
   const [isStreamActive, setIsStreamActive] = useState(true);
   const [latestBlockNumber, setLatestBlockNumber] = useState(19842109);
+  const [isNavbarScannerOpen, setIsNavbarScannerOpen] = useState(false);
+
+  // Check URL query parameters for QR scan redirects (e.g. ?batch=HONEY-2026-001 or ?verify=...)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const batchParam = params.get('batch') || params.get('verify') || params.get('code');
+      const viewParam = params.get('view') as AppView | null;
+
+      if (batchParam) {
+        const found = batches.find(
+          (b) =>
+            b.batchCode.toLowerCase() === batchParam.toLowerCase() ||
+            b.id.toLowerCase() === batchParam.toLowerCase() ||
+            b.qrToken.toLowerCase() === batchParam.toLowerCase()
+        );
+        if (found) {
+          setSelectedBatchId(found.id);
+          setCurrentView('consumer');
+        }
+      } else if (viewParam) {
+        setCurrentView(viewParam);
+      }
+    } catch (e) {
+      console.warn('Failed to parse URL query params:', e);
+    }
+  }, [batches]);
 
   // Initialize batch commitment hashes with authentic SHA-256 on mount
   useEffect(() => {
@@ -303,6 +334,7 @@ export default function App() {
         currentView={currentView}
         onSelectView={setCurrentView}
         onOpenDemoGuide={() => setIsDemoGuideOpen(true)}
+        onOpenQRScanner={() => setIsNavbarScannerOpen(true)}
         unreadAlertCount={alerts.filter((a) => !a.isRead).length}
         latestBlockNumber={latestBlockNumber}
       />
@@ -321,6 +353,24 @@ export default function App() {
             onAnchorBatch={handleAnchorBatch}
             onToggleSimulatedStream={() => setIsStreamActive(!isStreamActive)}
             isStreamActive={isStreamActive}
+            initialSelectedHiveId={selectedHiveIdForTelemetry}
+            onNavigateToApiaryMap={() => setCurrentView('apiary-map')}
+          />
+        )}
+
+        {currentView === 'apiary-map' && (
+          <ApiaryMapView
+            hives={hives}
+            alerts={alerts}
+            onSelectHiveForTelemetry={(hiveId) => {
+              setSelectedHiveIdForTelemetry(hiveId);
+              setCurrentView('beekeeper');
+            }}
+            onLogHarvestForHive={(hive) => {
+              setSelectedHiveIdForTelemetry(hive.id);
+              setCurrentView('beekeeper');
+            }}
+            onNavigateToView={setCurrentView}
           />
         )}
 
@@ -366,6 +416,18 @@ export default function App() {
         isOpen={isDemoGuideOpen}
         onClose={() => setIsDemoGuideOpen(false)}
         onNavigateView={setCurrentView}
+      />
+
+      {/* Top Navbar QR Code Scanner Modal */}
+      <QRScannerModal
+        isOpen={isNavbarScannerOpen}
+        onClose={() => setIsNavbarScannerOpen(false)}
+        batches={batches}
+        onSelectBatch={(batch) => {
+          setSelectedBatchId(batch.id);
+          setCurrentView('consumer');
+          setIsNavbarScannerOpen(false);
+        }}
       />
 
       {/* Footer */}

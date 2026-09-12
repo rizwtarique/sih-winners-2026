@@ -5,6 +5,8 @@
 
 export type UserRole = 'beekeeper' | 'consumer' | 'lab' | 'admin';
 
+export type AppView = UserRole | 'tamper-demo' | 'learning-hub' | 'apiary-map';
+
 export type HiveStatus = 'healthy' | 'watch' | 'critical' | 'offline';
 
 export type BatchStatus =
@@ -28,6 +30,51 @@ export interface SensorReading {
   soundDb: number; // sound frequency / amplitude in dB (30 - 65 dB)
   source: 'SIMULATED' | 'REAL';
   seqNo: number;
+}
+
+export type TelemetryDateRange = '24h' | '7d' | '30d';
+
+export interface TelemetryPoint {
+  time: string; // e.g. "02:00", "Mon 08", "Sep 05", "Today"
+  hour?: number; // 0-23
+  date?: string; // e.g. "2026-09-12"
+  fullLabel?: string; // descriptive tooltip label
+  temperature: number; // in °C
+  humidity: number; // in %
+  weightKg: number; // in kg
+  soundDb: number; // in dB
+  ambientTemp?: number; // outside ambient temp in °C
+  tempMin?: number;
+  tempMax?: number;
+  humidityMin?: number;
+  humidityMax?: number;
+  isThermalSpike?: boolean;
+  isHumidityAlert?: boolean;
+}
+
+export type HourlyTelemetryPoint = TelemetryPoint;
+
+export interface ActionableIntervention {
+  title: string;
+  priority: 'Immediate' | 'Preventative' | 'Observation';
+  category: 'Ventilation' | 'Shade & Cooling' | 'Water Supply' | 'Nutrition' | 'Disease Inspection' | 'Space Management' | string;
+  rationale: string;
+  steps: string[];
+}
+
+export interface GeminiHiveHealthSummary {
+  executiveSummary: string;
+  thermodynamicAnalysis: string;
+  humidityAndVentilation: string;
+  riskLevel: 'Low' | 'Moderate' | 'High' | 'Critical';
+  homeostasisScore: number;
+  actionableInterventions: ActionableIntervention[];
+  recommendedInspectionWindow: string;
+  modelUsed: string;
+  hiveId: string;
+  hiveCode: string;
+  generatedAt: string;
+  isModelEstimate: true;
 }
 
 export interface AIHealthAssessment {
@@ -69,6 +116,20 @@ export interface Hive {
   currentReading: SensorReading;
   healthAssessment: AIHealthAssessment;
   yieldPrediction: YieldPrediction;
+  hourlyHistory24h?: HourlyTelemetryPoint[];
+  coordinates?: {
+    lat: number;
+    lng: number;
+    elevationMeters?: number;
+  };
+  gridPosition?: {
+    row: number;
+    col: number;
+    zone: string;
+    plotCode: string;
+    orientation?: string;
+    shadeCover?: 'Full Sun' | 'Partial Shade' | 'Canopy Cover';
+  };
 }
 
 export interface LabTestParameters {
