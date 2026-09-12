@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Hive, HoneyBatch, AlertItem, QualityCertificate, UserRole, AppView, FarmerProfile } from './types';
+import { Hive, HoneyBatch, AlertItem, QualityCertificate, UserRole, AppView, FarmerProfile, BatchStatus } from './types';
 import { INITIAL_HIVES, INITIAL_BATCHES, INITIAL_ALERTS, MOCK_FARMERS } from './data/mockData';
 import { Navbar } from './components/Navbar';
 import { BeekeeperView } from './components/BeekeeperView';
@@ -12,6 +12,7 @@ import { InteractiveTamperDemo } from './components/InteractiveTamperDemo';
 import { LearningHubView } from './components/LearningHubView';
 import { DemoScenarioModal } from './components/DemoScenarioModal';
 import { QRScannerModal } from './components/QRScannerModal';
+import { PrintStickerView } from './components/PrintStickerView';
 import { computeBatchCommitmentHash } from './utils/crypto';
 
 export default function App() {
@@ -37,7 +38,20 @@ export default function App() {
       const farmerParam = params.get('farmer') || params.get('farmerId');
       const viewParam = params.get('view') as AppView | null;
 
-      if (farmerParam) {
+      if (viewParam === 'print-sticker') {
+        if (batchParam) {
+          const found = batches.find(
+            (b) =>
+              b.batchCode.toLowerCase() === batchParam.toLowerCase() ||
+              b.id.toLowerCase() === batchParam.toLowerCase() ||
+              b.qrToken.toLowerCase() === batchParam.toLowerCase()
+          );
+          if (found) {
+            setSelectedBatchId(found.id);
+          }
+        }
+        setCurrentView('print-sticker');
+      } else if (farmerParam) {
         const foundFarmer = farmers.find(
           (f) =>
             f.id.toLowerCase() === farmerParam.toLowerCase() ||
@@ -155,6 +169,8 @@ export default function App() {
       harvestDate: newBatchData.harvestDate || new Date().toISOString().split('T')[0],
       packagingDate: 'Pending Processing',
       status: 'HARVESTED',
+      moisturePct: newBatchData.moisturePct || 18.2,
+      processingNotes: newBatchData.processingNotes || '',
       qrToken: `hc_tok_${Date.now().toString(36)}`,
       qrUrl: `https://honeychain.org/verify/${batchCode}`,
       events: newBatchData.events || [],
@@ -190,6 +206,8 @@ export default function App() {
     const target = batches.find((b) => b.id === batchId);
     if (!target) return;
 
+    const isPassed = cert.parameters.overallResult === 'PASS' && cert.parameters.c4SugarAdulteration !== 'Positive';
+    const batchStatus: BatchStatus = isPassed ? 'CERTIFIED' : 'FAILED';
     const hash = await computeBatchCommitmentHash(target, cert);
     const txHash = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
     const blockNum = latestBlockNumber + 1;
@@ -199,7 +217,7 @@ export default function App() {
       if (b.id === batchId) {
         return {
           ...b,
-          status: 'CERTIFIED' as const,
+          status: batchStatus,
           certificate: cert,
           blockchainRecord: {
             contractAddress: '0x71C2d67F0598822384a51A7d9D04BFe44A895F31',
@@ -213,21 +231,25 @@ export default function App() {
             blockNumber: blockNum,
             anchoredAt: new Date().toISOString(),
             status: 'CONFIRMED' as const,
-            verificationStatus: 'VERIFIED' as const,
+            verificationStatus: isPassed ? ('VERIFIED' as const) : ('TAMPER_DETECTED' as const),
           },
           events: [
             ...b.events,
             {
               id: `ev-cert-${Date.now()}`,
               eventType: 'LAB_CERTIFICATION',
-              title: 'NABL Laboratory Certified & Anchored on Ledger',
+              title: isPassed
+                ? 'NABL Laboratory Certified & Anchored on Ledger'
+                : 'NABL Laboratory Quality Test Rejected / Non-Compliant',
               occurredAt: new Date().toLocaleString(),
               actorName: cert.analystName,
               actorRole: cert.labName,
               location: 'State Analytical Testing Lab',
-              details: `Moisture ${cert.parameters.moisturePct}%, HMF ${cert.parameters.hmfMgKg}mg/kg, C4 Adulteration: ${cert.parameters.c4SugarAdulteration}. Anchored to Polygon Block #${blockNum}.`,
+              details: isPassed
+                ? `Moisture ${cert.parameters.moisturePct}%, HMF ${cert.parameters.hmfMgKg}mg/kg, C4 Adulteration: ${cert.parameters.c4SugarAdulteration}. Anchored to Polygon Block #${blockNum}.`
+                : `FAILED FSSAI Standards: Moisture ${cert.parameters.moisturePct}%, HMF ${cert.parameters.hmfMgKg}mg/kg, C4 Adulteration: ${cert.parameters.c4SugarAdulteration}. Anchored to Polygon Block #${blockNum}.`,
               eventHash: hash,
-              iconName: 'ShieldCheck',
+              iconName: isPassed ? 'ShieldCheck' : 'AlertCircle',
             },
           ],
         };
@@ -444,6 +466,13 @@ export default function App() {
         )}
 
         {currentView === 'learning-hub' && <LearningHubView />}
+
+        {currentView === 'print-sticker' && (
+          <PrintStickerView
+            batch={selectedBatch}
+            onBack={() => setCurrentView('consumer')}
+          />
+        )}
       </main>
 
       {/* SIH 6-Minute Judge Walkthrough Guide Modal */}

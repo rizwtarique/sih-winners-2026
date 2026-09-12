@@ -100,7 +100,8 @@ export function LabCertifierView({ batches, onIssueCertificate }: LabCertifierVi
           <div className="space-y-3">
             {batches.map((batch) => {
               const isSelected = batch.id === selectedBatch.id;
-              const hasCert = !!batch.certificate;
+              const isCertPass = batch.certificate?.parameters.overallResult === 'PASS' || batch.status === 'CERTIFIED';
+              const isCertFail = batch.certificate?.parameters.overallResult === 'FAIL' || batch.status === 'FAILED';
               return (
                 <div
                   key={batch.id}
@@ -119,7 +120,11 @@ export function LabCertifierView({ batches, onIssueCertificate }: LabCertifierVi
                       <p className="text-xs text-slate-600 font-medium mt-0.5">{batch.honeyType}</p>
                     </div>
 
-                    {hasCert ? (
+                    {isCertFail ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200">
+                        FAILED
+                      </span>
+                    ) : isCertPass ? (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
                         CERTIFIED
                       </span>
@@ -148,7 +153,11 @@ export function LabCertifierView({ batches, onIssueCertificate }: LabCertifierVi
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
                   <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    {selectedBatch.certificate.parameters.overallResult === 'PASS' ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5 text-rose-600" />
+                    )}
                     <h3 className="text-base font-bold text-slate-900">
                       Certificate Issued for {selectedBatch.batchCode}
                     </h3>
@@ -158,7 +167,13 @@ export function LabCertifierView({ batches, onIssueCertificate }: LabCertifierVi
                   </p>
                 </div>
 
-                <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-100 text-emerald-800">
+                <span
+                  className={`text-xs font-bold px-3 py-1 rounded-full border ${
+                    selectedBatch.certificate.parameters.overallResult === 'PASS'
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      : 'bg-rose-100 text-rose-800 border-rose-300'
+                  }`}
+                >
                   Status: {selectedBatch.certificate.parameters.overallResult}
                 </span>
               </div>

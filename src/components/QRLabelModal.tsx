@@ -110,9 +110,18 @@ export function QRLabelModal({
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Award className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Moisture: <strong>{batch.certificate?.parameters.moisturePct ?? 17.8}%</strong> (FSSAI max 20%)</span>
+                    <span>Moisture: <strong>{batch.certificate?.parameters.moisturePct ?? batch.moisturePct ?? 17.8}%</strong> (FSSAI max 20%)</span>
                   </div>
                 </div>
+
+                {(batch.processingNotes || batch.events?.find((e) => e.eventType === 'HARVEST')?.details) && (
+                  <div className="p-2 rounded-lg bg-amber-50/80 border border-amber-200 text-xs">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Processing</span>
+                    <p className="text-slate-700 font-medium text-xs mt-0.5 line-clamp-2">
+                      {batch.processingNotes || batch.events?.find((e) => e.eventType === 'HARVEST')?.details}
+                    </p>
+                  </div>
+                )}
 
                 <div className="pt-2 border-t border-amber-200">
                   <div className="text-[10px] font-mono text-slate-500">

@@ -88,41 +88,16 @@ export function QRCodeCard({
   };
 
   const handlePrint = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    const printUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}${window.location.pathname}?view=print-sticker&batch=${encodeURIComponent(batch.batchCode)}`
+      : '';
 
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>HoneyChain Packaging Label - ${batch.batchCode}</title>
-          <style>
-            body { font-family: system-ui, sans-serif; padding: 24px; color: #0f172a; text-align: center; }
-            .label-card { border: 2px solid #e2e8f0; border-radius: 16px; padding: 24px; max-width: 360px; margin: 0 auto; }
-            .title { font-size: 18px; font-weight: 800; margin: 8px 0; color: #d97706; }
-            .code { font-family: monospace; font-size: 14px; font-weight: 700; background: #f1f5f9; padding: 4px 8px; border-radius: 6px; }
-            .meta { font-size: 12px; color: #64748b; margin: 6px 0; }
-            .qr-img { width: 180px; height: 180px; margin: 12px auto; display: block; }
-            .badge { font-size: 10px; font-weight: bold; background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; padding: 3px 8px; border-radius: 999px; display: inline-block; }
-          </style>
-        </head>
-        <body>
-          <div class="label-card">
-            <div class="badge">KVIC HONEY MISSION · CRYPTOGRAPHIC SEAL</div>
-            <div class="title">${batch.honeyType}</div>
-            <div class="meta">Origin: ${batch.district}, ${batch.state}</div>
-            <div class="code">BATCH: ${batch.batchCode}</div>
-            <img src="${qrDataUrl}" class="qr-img" alt="QR Code" />
-            <div class="meta">Scan with any phone camera to verify blockchain record & lab report</div>
-            <div class="meta" style="font-size: 10px; margin-top: 8px;">HMAC: ${batch.qrToken}</div>
-          </div>
-          <script>
-            window.onload = function() { window.print(); }
-          </script>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+    if (printUrl) {
+      const printWindow = window.open(printUrl, '_blank');
+      if (!printWindow || printWindow.closed || typeof printWindow.closed === 'undefined') {
+        window.location.href = printUrl;
+      }
+    }
   };
 
   return (

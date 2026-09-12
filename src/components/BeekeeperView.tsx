@@ -70,9 +70,10 @@ export function BeekeeperView({
 
   // Harvest form state
   const [harvestHiveId, setHarvestHiveId] = useState(hives[0]?.id || '');
-  const [honeyType, setHoneyType] = useState('Wild Acacia & Flora');
+  const [honeyType, setHoneyType] = useState('Wild Mustard & Desert Flora');
   const [netWeightKg, setNetWeightKg] = useState('22.5');
   const [framesCount, setFramesCount] = useState('8');
+  const [moisture, setMoisture] = useState('18.2');
   const [notes, setNotes] = useState('Centrifugal cold extraction, 80-mesh filtered');
 
   const selectedHive = hives.find((h) => h.id === selectedHiveId) || hives[0];
@@ -82,6 +83,7 @@ export function BeekeeperView({
     const hive = hives.find((h) => h.id === harvestHiveId) || hives[0];
     const weightNum = parseFloat(netWeightKg) || 20.0;
     const framesNum = parseInt(framesCount) || 8;
+    const moistureNum = parseFloat(moisture) || 18.2;
 
     onLogHarvest({
       hiveId: hive.id,
@@ -95,6 +97,8 @@ export function BeekeeperView({
       framesHarvested: framesNum,
       harvestDate: new Date().toISOString().split('T')[0],
       status: 'HARVESTED',
+      moisturePct: moistureNum,
+      processingNotes: notes,
       events: [
         {
           id: `ev-${Date.now()}`,
@@ -611,6 +615,13 @@ export function BeekeeperView({
                     <p className="text-xs text-slate-500">
                       Harvested: {batch.harvestDate} · Net Weight: {batch.netWeightKg} kg · {batch.framesHarvested} Frames · {batch.hiveCode}
                     </p>
+
+                    {(batch.processingNotes || batch.events?.find((e) => e.eventType === 'HARVEST')?.details) && (
+                      <p className="text-xs text-slate-700 font-medium">
+                        <span className="text-slate-500 font-bold">Processing:</span>{' '}
+                        {batch.processingNotes || batch.events?.find((e) => e.eventType === 'HARVEST')?.details}
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -734,9 +745,10 @@ export function BeekeeperView({
                   <label className="block font-bold text-slate-700 mb-1">Moisture Gauge Check (%)</label>
                   <input
                     type="text"
-                    defaultValue="18.2% (Field refractometer)"
-                    readOnly
-                    className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 font-medium text-slate-600"
+                    value={moisture}
+                    onChange={(e) => setMoisture(e.target.value)}
+                    placeholder="18.2"
+                    className="w-full p-2.5 rounded-xl border border-slate-300 bg-white font-medium text-slate-900"
                   />
                 </div>
               </div>

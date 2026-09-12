@@ -5,7 +5,7 @@
 
 export type UserRole = 'beekeeper' | 'consumer' | 'lab' | 'admin';
 
-export type AppView = UserRole | 'tamper-demo' | 'learning-hub' | 'apiary-map' | 'farmer-passport';
+export type AppView = UserRole | 'tamper-demo' | 'learning-hub' | 'apiary-map' | 'farmer-passport' | 'print-sticker';
 
 export interface FarmerProfile {
   id: string; // e.g. "KVIC-FARMER-8841"
@@ -46,7 +46,8 @@ export type BatchStatus =
   | 'PACKAGED'
   | 'DISPATCHED'
   | 'SOLD'
-  | 'RECALLED';
+  | 'RECALLED'
+  | 'FAILED';
 
 export interface SensorReading {
   id: string;
@@ -232,6 +233,8 @@ export interface HoneyBatch {
   harvestDate: string;
   packagingDate: string;
   status: BatchStatus;
+  moisturePct?: number;
+  processingNotes?: string;
   qrToken: string;
   qrUrl: string;
   events: ProcessingEvent[];
