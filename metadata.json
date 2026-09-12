@@ -2,6 +2,7 @@
   "name": "Honey Chain",
   "description": "Blockchain-based honey traceability and smart beekeeping management platform with QR consumer verification, IoT monitoring, and AI health insights.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
-

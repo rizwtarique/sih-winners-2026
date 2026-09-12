@@ -5,7 +5,35 @@
 
 export type UserRole = 'beekeeper' | 'consumer' | 'lab' | 'admin';
 
-export type AppView = UserRole | 'tamper-demo' | 'learning-hub' | 'apiary-map';
+export type AppView = UserRole | 'tamper-demo' | 'learning-hub' | 'apiary-map' | 'farmer-passport';
+
+export interface FarmerProfile {
+  id: string; // e.g. "KVIC-FARMER-8841"
+  name: string;
+  avatarUrl?: string;
+  kvicRegistrationNumber: string; // e.g. "KVIC/HM/RAJ/2023/8841"
+  aadhaarKycVerified: boolean;
+  bankAccountLinked: boolean;
+  village: string;
+  tehsil: string;
+  district: string;
+  state: string;
+  pincode: string;
+  cooperativeName: string; // e.g. "Mewar Natural Honey Producers Cooperative"
+  contactPhone: string; // public FPO liaison phone
+  experienceYears: number;
+  totalActiveColonies: number;
+  beeSpecies: string[]; // e.g. ["Apis mellifera", "Apis cerana indica"]
+  primaryFlora: string[]; // e.g. ["Wild Mustard", "Desert Flora", "Babul/Acacia"]
+  certifications: string[]; // e.g. ["KVIC Honey Mission Certified", "Zero-Antibiotic Natural Practice", "Organic Traceable"]
+  subsidyAwarded: string; // e.g. "10 Bee-boxes & Colony Kit under KVIC Honey Mission 2023"
+  bio: string;
+  qrToken: string;
+  qrUrl: string;
+  registeredDate: string;
+  hiveIds: string[];
+  batchIds: string[];
+}
 
 export type HiveStatus = 'healthy' | 'watch' | 'critical' | 'offline';
 
@@ -191,6 +219,8 @@ export interface HoneyBatch {
   hiveId: string;
   hiveCode: string;
   apiaryLocation: string;
+  farmerId?: string;
+  farmer?: FarmerProfile;
   beekeeperName: string;
   beekeeperPhone: string; // Kept private, only district shown publicly
   district: string;

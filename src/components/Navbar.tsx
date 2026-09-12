@@ -12,6 +12,7 @@ import {
   Radio,
   Map,
   Camera,
+  Award,
 } from 'lucide-react';
 import { AppView } from '../types';
 
@@ -122,6 +123,18 @@ export function Navbar({
           </button>
 
           <button
+            onClick={() => onSelectView('farmer-passport')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
+              currentView === 'farmer-passport'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <Award className="w-4 h-4" />
+            <span>Farmer Passport & QR</span>
+          </button>
+
+          <button
             onClick={() => onSelectView('lab')}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition-all ${
               currentView === 'lab'
@@ -218,6 +231,14 @@ export function Navbar({
           }`}
         >
           📱 QR Verify
+        </button>
+        <button
+          onClick={() => onSelectView('farmer-passport')}
+          className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold ${
+            currentView === 'farmer-passport' ? 'bg-amber-500 text-slate-950' : 'text-slate-300'
+          }`}
+        >
+          👨‍🌾 Farmer QR
         </button>
         <button
           onClick={() => onSelectView('lab')}

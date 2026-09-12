@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import jsQR from 'jsqr';
-import { HoneyBatch } from '../types';
+import { HoneyBatch, FarmerProfile } from '../types';
 import {
   Camera,
   Upload,
@@ -14,6 +14,9 @@ import {
   RefreshCw,
   Smartphone,
   ExternalLink,
+  Award,
+  User,
+  ArrowRight,
 } from 'lucide-react';
 
 interface QRScannerModalProps {
@@ -21,6 +24,8 @@ interface QRScannerModalProps {
   onClose: () => void;
   batches: HoneyBatch[];
   onSelectBatch: (batch: HoneyBatch) => void;
+  farmers?: FarmerProfile[];
+  onSelectFarmer?: (farmerId: string) => void;
 }
 
 export function QRScannerModal({
@@ -28,6 +33,8 @@ export function QRScannerModal({
   onClose,
   batches,
   onSelectBatch,
+  farmers = [],
+  onSelectFarmer,
 }: QRScannerModalProps) {
   const [activeTab, setActiveTab] = useState<'camera' | 'upload' | 'samples'>('samples');
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -35,6 +42,7 @@ export function QRScannerModal({
   const [scanResult, setScanResult] = useState<{
     code: string;
     batch?: HoneyBatch;
+    farmer?: FarmerProfile;
     isValid: boolean;
   } | null>(null);
   const [manualCode, setManualCode] = useState<string>('');
@@ -126,16 +134,21 @@ export function QRScannerModal({
     };
   }, [isOpen, activeTab]);
 
-  // Handle decoded text from QR (URL or raw batch code)
+  // Handle decoded text from QR (URL or raw batch/farmer code)
   const handleRawDecodedData = (rawText: string) => {
     let extractedCode = rawText.trim();
+    let isFarmerQuery = false;
 
-    // Check if it's a URL with ?batch= or /verify/
+    // Check if it's a URL with ?farmer=, ?batch=, or /verify/
     try {
       if (rawText.includes('?') || rawText.startsWith('http')) {
         const url = new URL(rawText, window.location.href);
+        const farmerParam = url.searchParams.get('farmer');
         const batchParam = url.searchParams.get('batch') || url.searchParams.get('verify');
-        if (batchParam) {
+        if (farmerParam) {
+          extractedCode = farmerParam;
+          isFarmerQuery = true;
+        } else if (batchParam) {
           extractedCode = batchParam;
         } else {
           // Check pathname for /verify/BATCH
@@ -148,6 +161,24 @@ export function QRScannerModal({
       }
     } catch (e) {
       // not a valid URL, use raw string
+    }
+
+    // Check if code matches a farmer
+    const matchedFarmer = farmers.find(
+      (f) =>
+        f.id.toLowerCase() === extractedCode.toLowerCase() ||
+        f.kvicRegistrationNumber.toLowerCase() === extractedCode.toLowerCase() ||
+        f.name.toLowerCase() === extractedCode.toLowerCase() ||
+        f.qrUrl.toLowerCase().includes(extractedCode.toLowerCase())
+    );
+
+    if (matchedFarmer || isFarmerQuery) {
+      setScanResult({
+        code: extractedCode,
+        farmer: matchedFarmer,
+        isValid: !!matchedFarmer,
+      });
+      return;
     }
 
     // Match against known batches
@@ -206,6 +237,13 @@ export function QRScannerModal({
 
   const handleConfirmBatch = (batch: HoneyBatch) => {
     onSelectBatch(batch);
+    onClose();
+  };
+
+  const handleConfirmFarmer = (farmer: FarmerProfile) => {
+    if (onSelectFarmer) {
+      onSelectFarmer(farmer.id);
+    }
     onClose();
   };
 
@@ -302,46 +340,99 @@ export function QRScannerModal({
                 </p>
               </div>
 
-              <div className="space-y-2.5">
-                {batches.map((b) => (
-                  <div
-                    key={b.id}
-                    onClick={() => handleRawDecodedData(b.batchCode)}
-                    className="p-3.5 rounded-xl border border-slate-200 hover:border-amber-400 bg-white hover:bg-amber-50/50 transition-all cursor-pointer flex items-center justify-between group shadow-2xs"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-slate-900 text-amber-400 flex items-center justify-center font-mono font-bold text-xs">
-                        QR
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-extrabold text-slate-900">
-                            {b.batchCode}
-                          </span>
-                          <span
-                            className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                              b.blockchainRecord?.status === 'CONFIRMED'
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-slate-100 text-slate-700'
-                            }`}
-                          >
-                            {b.blockchainRecord?.status === 'CONFIRMED' ? 'ANCHORED' : 'PENDING'}
-                          </span>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">
+                    1. Retail Honey Jar QR Codes (Consumer Scan)
+                  </span>
+                  <div className="space-y-2">
+                    {batches.map((b) => (
+                      <div
+                        key={b.id}
+                        onClick={() => handleRawDecodedData(b.batchCode)}
+                        className="p-3 rounded-xl border border-slate-200 hover:border-amber-400 bg-white hover:bg-amber-50/50 transition-all cursor-pointer flex items-center justify-between group shadow-2xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-slate-900 text-amber-400 flex items-center justify-center font-mono font-bold text-xs">
+                            JAR
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs font-extrabold text-slate-900">
+                                {b.batchCode}
+                              </span>
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                                  b.blockchainRecord?.status === 'CONFIRMED'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : 'bg-slate-100 text-slate-700'
+                                }`}
+                              >
+                                {b.blockchainRecord?.status === 'CONFIRMED' ? 'ANCHORED' : 'PENDING'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-600 mt-0.5">
+                              {b.honeyType} · {b.district}, {b.state}
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-xs text-slate-600 mt-0.5">
-                          {b.honeyType} · {b.district}, {b.state}
-                        </p>
-                      </div>
-                    </div>
 
-                    <button
-                      type="button"
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 group-hover:bg-amber-500 group-hover:text-slate-950 text-slate-700 transition-all cursor-pointer"
-                    >
-                      Scan This Jar
-                    </button>
+                        <button
+                          type="button"
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 group-hover:bg-amber-500 group-hover:text-slate-950 text-slate-700 transition-all cursor-pointer"
+                        >
+                          Scan Jar
+                        </button>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+
+                {farmers && farmers.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-slate-200">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1">
+                      <Award className="w-3.5 h-3.5" />
+                      2. Farmer Apiary & Bee Box QR Codes (Field Scan)
+                    </span>
+                    <div className="space-y-2">
+                      {farmers.map((f) => (
+                        <div
+                          key={f.id}
+                          onClick={() => handleRawDecodedData(f.id)}
+                          className="p-3 rounded-xl border border-amber-200 hover:border-amber-500 bg-amber-50/40 hover:bg-amber-100/60 transition-all cursor-pointer flex items-center justify-between group shadow-2xs"
+                        >
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={f.avatarUrl || 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=100'}
+                              alt={f.name}
+                              className="w-8 h-8 rounded-lg object-cover ring-1 ring-amber-400"
+                            />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-extrabold text-slate-900">
+                                  {f.name}
+                                </span>
+                                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-1.5 py-0.2 rounded">
+                                  KYC VERIFIED
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-600 mt-0.5">
+                                Reg #{f.kvicRegistrationNumber} · {f.village}, {f.district}
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 group-hover:bg-amber-500 group-hover:text-slate-950 text-white transition-all cursor-pointer"
+                          >
+                            Scan Box QR
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -442,33 +533,48 @@ export function QRScannerModal({
           {scanResult && (
             <div
               className={`p-4 rounded-xl border text-xs animate-in fade-in slide-in-from-bottom-2 ${
-                scanResult.isValid && scanResult.batch
+                scanResult.isValid
                   ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
                   : 'bg-rose-50 border-rose-300 text-rose-950'
               }`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-2.5">
-                  {scanResult.isValid && scanResult.batch ? (
+                  {scanResult.isValid ? (
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                   ) : (
                     <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                   )}
                   <div>
                     <div className="font-extrabold text-sm">
-                      {scanResult.isValid && scanResult.batch
-                        ? `QR Verified: ${scanResult.batch.batchCode}`
+                      {scanResult.farmer
+                        ? `Farmer QR Verified: ${scanResult.farmer.name}`
+                        : scanResult.batch
+                        ? `Honey Jar QR Verified: ${scanResult.batch.batchCode}`
                         : 'Invalid or Unrecognized QR Code'}
                     </div>
                     <p className="mt-0.5 text-slate-600">
-                      {scanResult.isValid && scanResult.batch
+                      {scanResult.farmer
+                        ? `Reg #${scanResult.farmer.kvicRegistrationNumber} · ${scanResult.farmer.village}, ${scanResult.farmer.district} · KVIC Honey Mission`
+                        : scanResult.batch
                         ? `${scanResult.batch.honeyType} · ${scanResult.batch.district}, ${scanResult.batch.state}`
-                        : `Decoded payload: "${scanResult.code}" does not match any registered KVIC batch.`}
+                        : `Decoded payload: "${scanResult.code}" does not match any registered batch or farmer.`}
                     </p>
                   </div>
                 </div>
 
-                {scanResult.isValid && scanResult.batch && (
+                {scanResult.farmer && (
+                  <button
+                    type="button"
+                    onClick={() => handleConfirmFarmer(scanResult.farmer!)}
+                    className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs shrink-0 shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>View Farmer Passport</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {scanResult.batch && !scanResult.farmer && (
                   <button
                     type="button"
                     onClick={() => handleConfirmBatch(scanResult.batch!)}

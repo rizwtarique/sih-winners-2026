@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { HoneyBatch } from '../types';
+import { HoneyBatch, FarmerProfile } from '../types';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -22,10 +22,19 @@ import {
   Camera,
   Printer,
   Smartphone,
+  Download,
+  FileText,
+  Building2,
+  Phone,
+  Award,
+  ArrowRight,
+  User,
+  CheckCircle2,
 } from 'lucide-react';
 import { formatHexShort } from '../utils/crypto';
 import { QRCodeCard } from './QRCodeCard';
 import { QRScannerModal } from './QRScannerModal';
+import { exportBatchCertificatePDF, exportBatchAuditJSON } from '../utils/complianceExport';
 
 interface ConsumerVerificationViewProps {
   batches: HoneyBatch[];
@@ -33,6 +42,8 @@ interface ConsumerVerificationViewProps {
   onSelectBatch: (batch: HoneyBatch) => void;
   onTamperToggle: (batchId: string, shouldTamper: boolean) => void;
   isTampered: boolean;
+  farmers?: FarmerProfile[];
+  onNavigateToFarmer?: (farmerId: string) => void;
 }
 
 export function ConsumerVerificationView({
@@ -41,10 +52,20 @@ export function ConsumerVerificationView({
   onSelectBatch,
   onTamperToggle,
   isTampered,
+  farmers = [],
+  onNavigateToFarmer,
 }: ConsumerVerificationViewProps) {
   const [copiedHash, setCopiedHash] = useState(false);
   const [showPrintLabel, setShowPrintLabel] = useState(true);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+
+  // Match farmer details for this batch
+  const farmer =
+    farmers.find(
+      (f) =>
+        f.id === selectedBatch.farmerId ||
+        f.name.toLowerCase() === selectedBatch.beekeeperName.toLowerCase()
+    ) || farmers[0];
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -225,28 +246,100 @@ export function ConsumerVerificationView({
         </div>
       </div>
 
-      {/* Batch Origin & Farm Highlights */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-        <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-          <Archive className="w-4 h-4 text-amber-600" />
-          <span>Honey Origin & Farm Specifications</span>
-        </h3>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span className="text-slate-500 font-semibold block">Beekeeper</span>
-            <span className="text-sm font-bold text-slate-900 mt-0.5 block">
-              {selectedBatch.beekeeperName}
+      {/* Public Files & Document Downloads (Accessible to anyone scanning the QR) */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5">
+            <FileText className="w-4 h-4 text-amber-600" />
+            <h4 className="text-sm font-bold text-slate-900">
+              Public Audit Dossier & Batch Certificate
+            </h4>
+            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+              Open Access
             </span>
-            <span className="text-[10px] text-amber-700 font-bold">KVIC Honey Mission Beneficiary</span>
+          </div>
+          <p className="text-xs text-slate-500">
+            Anyone scanning this honey jar QR can freely download the official quality certificates and raw cryptographic records.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => exportBatchCertificatePDF(selectedBatch, farmer)}
+            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Download Batch Certificate (PDF)</span>
+          </button>
+
+          <button
+            onClick={() => exportBatchAuditJSON(selectedBatch)}
+            className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5 transition-all cursor-pointer"
+          >
+            <FileText className="w-3.5 h-3.5 text-slate-500" />
+            <span>Audit JSON</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Comprehensive Farmer & Beekeeper Profile Card */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div className="flex items-center gap-3">
+            <img
+              src={farmer?.avatarUrl || 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=200'}
+              alt={farmer?.name || selectedBatch.beekeeperName}
+              className="w-14 h-14 rounded-2xl object-cover ring-2 ring-amber-500/30 border border-slate-200 shadow-xs"
+            />
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-slate-900">
+                  {farmer?.name || selectedBatch.beekeeperName}
+                </h3>
+                <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  KVIC KYC Verified
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 font-semibold flex items-center gap-1">
+                <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                {farmer?.cooperativeName || 'National Honey Mission FPO Cluster'}
+              </p>
+              <p className="text-xs text-slate-500 font-mono">
+                KVIC Reg #{farmer?.kvicRegistrationNumber || 'KVIC/HM/2023/8841'} · Experience: {farmer?.experienceYears || 14} yrs
+              </p>
+            </div>
+          </div>
+
+          {/* Direct Link to Farmer's Digital Passport & Bee Box QR */}
+          {onNavigateToFarmer && (
+            <button
+              onClick={() => onNavigateToFarmer(farmer?.id || 'farmer-01')}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white flex items-center gap-2 shadow-sm transition-all cursor-pointer self-start sm:self-center"
+            >
+              <QrCode className="w-4 h-4 text-amber-400" />
+              <span>View Farmer's Digital Passport & Bee Box QR</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Farmer & Batch Specifications Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <span className="text-slate-500 font-semibold block">Apiary Location</span>
+            <span className="text-sm font-bold text-slate-900 mt-0.5 block">
+              {farmer?.village ? `${farmer.village}, ` : ''}{selectedBatch.district}
+            </span>
+            <span className="text-[10px] text-slate-500 font-medium">State: {selectedBatch.state}</span>
           </div>
 
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <span className="text-slate-500 font-semibold block">Region / Apiary</span>
+            <span className="text-slate-500 font-semibold block">Hive / Bee Box</span>
             <span className="text-sm font-bold text-slate-900 mt-0.5 block">
-              {selectedBatch.district}, {selectedBatch.state}
+              {selectedBatch.hiveCode}
             </span>
-            <span className="text-[10px] text-slate-500 font-medium">Hive Code: {selectedBatch.hiveCode}</span>
+            <span className="text-[10px] text-slate-500 font-medium">Frames: {selectedBatch.framesHarvested || 12}</span>
           </div>
 
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
@@ -265,6 +358,13 @@ export function ConsumerVerificationView({
             <span className="text-[10px] text-slate-500 font-medium">Harvested: {selectedBatch.harvestDate}</span>
           </div>
         </div>
+
+        {/* Farmer Bio / Apicultural Story */}
+        {farmer?.bio && (
+          <p className="text-xs text-slate-600 bg-amber-50/50 p-3 rounded-xl border border-amber-200/60 leading-relaxed italic">
+            "{farmer.bio}"
+          </p>
+        )}
       </div>
 
       {/* Lab Quality & Purity Certificate Breakdown */}

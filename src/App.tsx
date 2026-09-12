@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Hive, HoneyBatch, AlertItem, QualityCertificate, UserRole, AppView } from './types';
-import { INITIAL_HIVES, INITIAL_BATCHES, INITIAL_ALERTS } from './data/mockData';
+import { Hive, HoneyBatch, AlertItem, QualityCertificate, UserRole, AppView, FarmerProfile } from './types';
+import { INITIAL_HIVES, INITIAL_BATCHES, INITIAL_ALERTS, MOCK_FARMERS } from './data/mockData';
 import { Navbar } from './components/Navbar';
 import { BeekeeperView } from './components/BeekeeperView';
 import { ApiaryMapView } from './components/ApiaryMapView';
 import { ConsumerVerificationView } from './components/ConsumerVerificationView';
+import { FarmerPassportView } from './components/FarmerPassportView';
 import { LabCertifierView } from './components/LabCertifierView';
 import { AdminKvicView } from './components/AdminKvicView';
 import { InteractiveTamperDemo } from './components/InteractiveTamperDemo';
@@ -17,6 +18,8 @@ export default function App() {
   const [currentView, setCurrentView] = useState<AppView>('beekeeper');
   const [hives, setHives] = useState<Hive[]>(INITIAL_HIVES);
   const [batches, setBatches] = useState<HoneyBatch[]>(INITIAL_BATCHES);
+  const [farmers, setFarmers] = useState<FarmerProfile[]>(MOCK_FARMERS);
+  const [selectedFarmerId, setSelectedFarmerId] = useState<string>(MOCK_FARMERS[0].id);
   const [alerts, setAlerts] = useState<AlertItem[]>(INITIAL_ALERTS);
   const [selectedBatchId, setSelectedBatchId] = useState<string>(INITIAL_BATCHES[0].id);
   const [selectedHiveIdForTelemetry, setSelectedHiveIdForTelemetry] = useState<string>('');
@@ -25,15 +28,27 @@ export default function App() {
   const [latestBlockNumber, setLatestBlockNumber] = useState(19842109);
   const [isNavbarScannerOpen, setIsNavbarScannerOpen] = useState(false);
 
-  // Check URL query parameters for QR scan redirects (e.g. ?batch=HONEY-2026-001 or ?verify=...)
+  // Check URL query parameters for QR scan redirects (e.g. ?batch=HONEY-2026-001 or ?farmer=farmer-01)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
       const params = new URLSearchParams(window.location.search);
       const batchParam = params.get('batch') || params.get('verify') || params.get('code');
+      const farmerParam = params.get('farmer') || params.get('farmerId');
       const viewParam = params.get('view') as AppView | null;
 
-      if (batchParam) {
+      if (farmerParam) {
+        const foundFarmer = farmers.find(
+          (f) =>
+            f.id.toLowerCase() === farmerParam.toLowerCase() ||
+            f.kvicRegistrationNumber.toLowerCase() === farmerParam.toLowerCase() ||
+            f.name.toLowerCase().includes(farmerParam.toLowerCase())
+        );
+        if (foundFarmer) {
+          setSelectedFarmerId(foundFarmer.id);
+          setCurrentView('farmer-passport');
+        }
+      } else if (batchParam) {
         const found = batches.find(
           (b) =>
             b.batchCode.toLowerCase() === batchParam.toLowerCase() ||
@@ -50,7 +65,7 @@ export default function App() {
     } catch (e) {
       console.warn('Failed to parse URL query params:', e);
     }
-  }, [batches]);
+  }, [batches, farmers]);
 
   // Initialize batch commitment hashes with authentic SHA-256 on mount
   useEffect(() => {
@@ -381,6 +396,26 @@ export default function App() {
             onSelectBatch={(b) => setSelectedBatchId(b.id)}
             onTamperToggle={handleTamperToggle}
             isTampered={isTampered}
+            farmers={farmers}
+            onNavigateToFarmer={(farmerId) => {
+              setSelectedFarmerId(farmerId);
+              setCurrentView('farmer-passport');
+            }}
+          />
+        )}
+
+        {currentView === 'farmer-passport' && (
+          <FarmerPassportView
+            farmers={farmers}
+            selectedFarmerId={selectedFarmerId}
+            onSelectFarmerId={setSelectedFarmerId}
+            batches={batches}
+            hives={hives}
+            onNavigateToBatch={(batchId) => {
+              setSelectedBatchId(batchId);
+              setCurrentView('consumer');
+            }}
+            onNavigateView={setCurrentView}
           />
         )}
 
@@ -423,9 +458,15 @@ export default function App() {
         isOpen={isNavbarScannerOpen}
         onClose={() => setIsNavbarScannerOpen(false)}
         batches={batches}
+        farmers={farmers}
         onSelectBatch={(batch) => {
           setSelectedBatchId(batch.id);
           setCurrentView('consumer');
+          setIsNavbarScannerOpen(false);
+        }}
+        onSelectFarmer={(farmerId) => {
+          setSelectedFarmerId(farmerId);
+          setCurrentView('farmer-passport');
           setIsNavbarScannerOpen(false);
         }}
       />
