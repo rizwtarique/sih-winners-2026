@@ -16,6 +16,7 @@ import { PrintStickerView } from './components/PrintStickerView';
 import { BottleStickerStudio } from './components/BottleStickerStudio';
 import { ConsumerPdfView } from './components/ConsumerPdfView';
 import { computeBatchCommitmentHash } from './utils/crypto';
+import { api } from './services/api';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<AppView>('beekeeper');
@@ -32,16 +33,71 @@ export default function App() {
   const [latestBlockNumber, setLatestBlockNumber] = useState(19842109);
   const [isNavbarScannerOpen, setIsNavbarScannerOpen] = useState(false);
 
-  // Check URL query parameters for QR scan redirects (e.g. ?batch=HONEY-2026-001 or ?farmer=farmer-01)
+  // Load persistent datasets from backend on initial mount
+  useEffect(() => {
+    let isMounted = true;
+    async function loadBackendData() {
+      try {
+        const [remoteBatches, remoteHives, remoteFarmers, remoteAlerts, chainStats] = await Promise.all([
+          api.getBatches(),
+          api.getHives(),
+          api.getFarmers(),
+          api.getAlerts(),
+          api.getBlockchainStats(),
+        ]);
+        if (!isMounted) return;
+        if (remoteBatches && remoteBatches.length > 0) {
+          setBatches(remoteBatches);
+          setSelectedBatchId((prevId) => {
+            return remoteBatches.some((b) => b.id === prevId) ? prevId : remoteBatches[0].id;
+          });
+        }
+        if (remoteHives && remoteHives.length > 0) setHives(remoteHives);
+        if (remoteFarmers && remoteFarmers.length > 0) setFarmers(remoteFarmers);
+        if (remoteAlerts && remoteAlerts.length > 0) setAlerts(remoteAlerts);
+        if (chainStats && chainStats.latestBlockNumber) setLatestBlockNumber(chainStats.latestBlockNumber);
+      } catch (err) {
+        console.warn('[Honey Chain] Fallback to local state:', err);
+      }
+    }
+    loadBackendData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Check URL query parameters and pathname for routes
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
+      const pathname = window.location.pathname.toLowerCase();
       const params = new URLSearchParams(window.location.search);
       const batchParam = params.get('batch') || params.get('verify') || params.get('code');
       const farmerParam = params.get('farmer') || params.get('farmerId');
       const viewParam = params.get('view') as AppView | null;
       const modeParam = params.get('mode');
       const isStandaloneMode = modeParam === 'consumer-standalone' || params.get('page') === 'consumer' || params.get('standalone') === 'true';
+
+      // 1. Direct navigation to /provenance, /dossier, or /verify
+      if (
+        pathname.includes('/provenance') ||
+        pathname.includes('/dossier') ||
+        pathname.includes('/verify')
+      ) {
+        if (batchParam) {
+          const found = batches.find(
+            (b) =>
+              b.batchCode.toLowerCase() === batchParam.toLowerCase() ||
+              b.id.toLowerCase() === batchParam.toLowerCase() ||
+              b.qrToken.toLowerCase() === batchParam.toLowerCase()
+          );
+          if (found) {
+            setSelectedBatchId(found.id);
+          }
+        }
+        setCurrentView('consumer');
+        return;
+      }
 
       if (isStandaloneMode) {
         if (batchParam) {
@@ -91,13 +147,56 @@ export default function App() {
           setSelectedBatchId(found.id);
           setCurrentView('consumer');
         }
+      } else if (viewParam === 'consumer' || (viewParam as string) === 'provenance') {
+        setCurrentView('consumer');
       } else if (viewParam) {
         setCurrentView(viewParam);
       }
     } catch (e) {
-      console.warn('Failed to parse URL query params:', e);
+      console.warn('Failed to parse URL query params or pathname:', e);
     }
   }, [batches, farmers]);
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handlePopState = () => {
+      const pathname = window.location.pathname.toLowerCase();
+      if (
+        pathname.includes('/provenance') ||
+        pathname.includes('/dossier') ||
+        pathname.includes('/verify')
+      ) {
+        setCurrentView('consumer');
+      } else {
+        const params = new URLSearchParams(window.location.search);
+        const view = (params.get('view') as AppView) || 'beekeeper';
+        setCurrentView((view as string) === 'provenance' ? 'consumer' : view);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Synchronize history state on view selection
+  const handleSelectView = (view: AppView) => {
+    const effectiveView = (view as string) === 'provenance' ? 'consumer' : view;
+    setCurrentView(effectiveView);
+    if (typeof window !== 'undefined') {
+      try {
+        if (effectiveView === 'consumer' || (view as string) === 'provenance') {
+          const currentBatchParam = selectedBatch?.batchCode
+            ? `?batch=${encodeURIComponent(selectedBatch.batchCode)}`
+            : '';
+          window.history.pushState({ view: 'consumer' }, '', `/provenance${currentBatchParam}`);
+        } else if (effectiveView === 'beekeeper') {
+          window.history.pushState({ view: 'beekeeper' }, '', '/');
+        } else {
+          window.history.pushState({ view: effectiveView }, '', `/?view=${effectiveView}`);
+        }
+      } catch (e) {}
+    }
+  };
 
   // Initialize batch commitment hashes with authentic SHA-256 on mount
   useEffect(() => {
@@ -166,220 +265,73 @@ export default function App() {
 
   // Beekeeper logs a new harvest
   const handleLogHarvest = async (newBatchData: Partial<HoneyBatch>) => {
-    const seq = Math.floor(100 + batches.length + 1);
-    const batchCode = `HC-2026-01${seq}`;
-    const newId = `batch-${Date.now()}`;
-
-    const newBatch: HoneyBatch = {
-      id: newId,
-      batchCode,
-      hiveId: newBatchData.hiveId || hives[0].id,
-      hiveCode: newBatchData.hiveCode || hives[0].hiveCode,
-      apiaryLocation: newBatchData.apiaryLocation || hives[0].apiaryName,
-      beekeeperName: 'Rameshwar Lal Gurjar',
-      beekeeperPhone: '+91 98290 XXXXX',
-      district: newBatchData.district || 'Bhilwara',
-      state: newBatchData.state || 'Rajasthan',
-      honeyType: newBatchData.honeyType || 'Wild Mustard',
-      grossWeightKg: newBatchData.grossWeightKg || 24.5,
-      netWeightKg: newBatchData.netWeightKg || 22.0,
-      framesHarvested: newBatchData.framesHarvested || 8,
-      harvestDate: newBatchData.harvestDate || new Date().toISOString().split('T')[0],
-      packagingDate: 'Pending Processing',
-      status: 'HARVESTED',
-      moisturePct: newBatchData.moisturePct || 18.2,
-      processingNotes: newBatchData.processingNotes || '',
-      qrToken: `hc_tok_${Date.now().toString(36)}`,
-      qrUrl: `https://honeychain.org/verify/${batchCode}`,
-      events: newBatchData.events || [],
-      originalValues: {
-        netWeightKg: newBatchData.netWeightKg || 22.0,
-        harvestDate: newBatchData.harvestDate || new Date().toISOString().split('T')[0],
-        honeyType: newBatchData.honeyType || 'Wild Mustard',
-      },
-    };
-
-    setBatches([newBatch, ...batches]);
-    setSelectedBatchId(newId);
-
-    // Add alert
-    setAlerts([
-      {
-        id: `alt-${Date.now()}`,
-        type: 'harvest_due',
-        severity: 'info',
-        title: `New Harvest Logged (${batchCode})`,
-        message: `Harvest of ${newBatch.netWeightKg} kg recorded from ${newBatch.hiveCode}. Pending lab sample testing.`,
-        batchCode,
-        timestamp: 'Just now',
-        isRead: false,
-        recommendedAction: 'Dispatch sample bottles to NABL accredited testing laboratory.',
-      },
-      ...alerts,
-    ]);
+    try {
+      const created = await api.createBatch(newBatchData);
+      setBatches((prev) => [created, ...prev.filter((b) => b.id !== created.id)]);
+      setSelectedBatchId(created.id);
+      const updatedAlerts = await api.getAlerts();
+      setAlerts(updatedAlerts);
+    } catch (err) {
+      console.error('Failed to persist new harvest batch:', err);
+    }
   };
 
   // Lab certifier issues certificate
   const handleIssueCertificate = async (batchId: string, cert: QualityCertificate) => {
-    const target = batches.find((b) => b.id === batchId);
-    if (!target) return;
+    const nextBlock = latestBlockNumber + 1;
+    setLatestBlockNumber(nextBlock);
 
-    const isPassed = cert.parameters.overallResult === 'PASS' && cert.parameters.c4SugarAdulteration !== 'Positive';
-    const batchStatus: BatchStatus = isPassed ? 'CERTIFIED' : 'FAILED';
-    const hash = await computeBatchCommitmentHash(target, cert);
-    const txHash = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-    const blockNum = latestBlockNumber + 1;
-    setLatestBlockNumber(blockNum);
-
-    const updatedBatches = batches.map((b) => {
-      if (b.id === batchId) {
-        return {
-          ...b,
-          status: batchStatus,
-          certificate: cert,
-          blockchainRecord: {
-            contractAddress: '0x71C2d67F0598822384a51A7d9D04BFe44A895F31',
-            network: 'Polygon Amoy Proof-of-Stake (EVM)',
-            chainId: 80002,
-            batchCodeHash: '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
-            commitmentHash: hash,
-            merkleRoot: '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
-            leafIndex: 2,
-            txHash,
-            blockNumber: blockNum,
-            anchoredAt: new Date().toISOString(),
-            status: 'CONFIRMED' as const,
-            verificationStatus: isPassed ? ('VERIFIED' as const) : ('TAMPER_DETECTED' as const),
-          },
-          events: [
-            ...b.events,
-            {
-              id: `ev-cert-${Date.now()}`,
-              eventType: 'LAB_CERTIFICATION',
-              title: isPassed
-                ? 'NABL Laboratory Certified & Anchored on Ledger'
-                : 'NABL Laboratory Quality Test Rejected / Non-Compliant',
-              occurredAt: new Date().toLocaleString(),
-              actorName: cert.analystName,
-              actorRole: cert.labName,
-              location: 'State Analytical Testing Lab',
-              details: isPassed
-                ? `Moisture ${cert.parameters.moisturePct}%, HMF ${cert.parameters.hmfMgKg}mg/kg, C4 Adulteration: ${cert.parameters.c4SugarAdulteration}. Anchored to Polygon Block #${blockNum}.`
-                : `FAILED FSSAI Standards: Moisture ${cert.parameters.moisturePct}%, HMF ${cert.parameters.hmfMgKg}mg/kg, C4 Adulteration: ${cert.parameters.c4SugarAdulteration}. Anchored to Polygon Block #${blockNum}.`,
-              eventHash: hash,
-              iconName: isPassed ? 'ShieldCheck' : 'AlertCircle',
-            },
-          ],
-        };
+    try {
+      const updated = await api.certifyBatch(batchId, cert, nextBlock);
+      if (updated) {
+        setBatches((prev) => prev.map((b) => (b.id === batchId ? updated : b)));
       }
-      return b;
-    });
-
-    setBatches(updatedBatches);
+    } catch (err) {
+      console.error('Failed to persist issued certificate:', err);
+    }
   };
 
   // Beekeeper or Admin triggers blockchain anchoring
   const handleAnchorBatch = async (batchId: string) => {
-    const target = batches.find((b) => b.id === batchId);
-    if (!target) return;
+    const nextBlock = latestBlockNumber + 1;
+    setLatestBlockNumber(nextBlock);
 
-    const hash = await computeBatchCommitmentHash(target, target.certificate);
-    const txHash = '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-    const blockNum = latestBlockNumber + 1;
-    setLatestBlockNumber(blockNum);
-
-    const updated = batches.map((b) => {
-      if (b.id === batchId) {
-        return {
-          ...b,
-          blockchainRecord: {
-            contractAddress: '0x71C2d67F0598822384a51A7d9D04BFe44A895F31',
-            network: 'Polygon Amoy Proof-of-Stake',
-            chainId: 80002,
-            batchCodeHash: '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
-            commitmentHash: hash,
-            merkleRoot: '0x' + Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
-            leafIndex: 0,
-            txHash,
-            blockNumber: blockNum,
-            anchoredAt: new Date().toISOString(),
-            status: 'CONFIRMED' as const,
-            verificationStatus: 'VERIFIED' as const,
-          },
-          events: [
-            ...b.events,
-            {
-              id: `ev-anch-${Date.now()}`,
-              eventType: 'BLOCKCHAIN_ANCHOR',
-              title: 'Batch Hash Anchored on Public Ledger',
-              occurredAt: new Date().toLocaleString(),
-              actorName: 'Honey Chain Relayer',
-              actorRole: 'Automated Smart Contract Engine',
-              location: 'Polygon Amoy',
-              details: `Sealed commitment hash ${hash.slice(0, 16)}... at block #${blockNum}.`,
-              eventHash: hash,
-              iconName: 'Link',
-            },
-          ],
-        };
+    try {
+      const updated = await api.anchorBatch(batchId, nextBlock);
+      if (updated) {
+        setBatches((prev) => prev.map((b) => (b.id === batchId ? updated : b)));
       }
-      return b;
-    });
-
-    setBatches(updated);
+    } catch (err) {
+      console.error('Failed to anchor batch:', err);
+    }
   };
 
   // Tamper toggle
-  const handleTamperToggle = (batchId: string, shouldTamper: boolean) => {
-    setBatches((prev) =>
-      prev.map((b) => {
-        if (b.id === batchId) {
-          if (shouldTamper) {
-            return {
-              ...b,
-              isTampered: true,
-              netWeightKg: 42.0, // Modified from 24.5kg
-              harvestDate: '2026-08-01', // Modified
-              honeyType: 'Adulterated Syrup Blend (Tampered in DB)',
-              originalValues: b.originalValues || {
-                netWeightKg: b.netWeightKg,
-                harvestDate: b.harvestDate,
-                honeyType: b.honeyType,
-              },
-            };
-          } else {
-            return {
-              ...b,
-              isTampered: false,
-              netWeightKg: b.originalValues?.netWeightKg || 24.5,
-              harvestDate: b.originalValues?.harvestDate || '2026-09-08',
-              honeyType: b.originalValues?.honeyType || 'Wild Mustard & Desert Flora',
-            };
-          }
-        }
-        return b;
-      })
-    );
+  const handleTamperToggle = async (batchId: string, shouldTamper: boolean) => {
+    try {
+      const updated = await api.toggleTamper(batchId, shouldTamper);
+      if (updated) {
+        setBatches((prev) => prev.map((b) => (b.id === batchId ? updated : b)));
+      }
+    } catch (err) {
+      console.error('Failed to toggle tamper state:', err);
+    }
   };
 
   // Direct tamper edits from the Tamper Playground
-  const handleUpdateBatchData = (
+  const handleUpdateBatchData = async (
     batchId: string,
     updates: Partial<HoneyBatch>,
     isTamperedFlag: boolean
   ) => {
-    setBatches((prev) =>
-      prev.map((b) => {
-        if (b.id === batchId) {
-          return {
-            ...b,
-            ...updates,
-            isTampered: isTamperedFlag,
-          };
-        }
-        return b;
-      })
-    );
+    try {
+      const updated = await api.updateBatch(batchId, updates, isTamperedFlag);
+      if (updated) {
+        setBatches((prev) => prev.map((b) => (b.id === batchId ? updated : b)));
+      }
+    } catch (err) {
+      console.error('Failed to update batch data:', err);
+    }
   };
 
   const relatedHive = hives.find(
@@ -411,7 +363,7 @@ export default function App() {
       {/* Top Application Navbar */}
       <Navbar
         currentView={currentView}
-        onSelectView={setCurrentView}
+        onSelectView={handleSelectView}
         onOpenDemoGuide={() => setIsDemoGuideOpen(true)}
         onOpenQRScanner={() => setIsNavbarScannerOpen(true)}
         unreadAlertCount={alerts.filter((a) => !a.isRead).length}
@@ -427,13 +379,13 @@ export default function App() {
             onLogHarvest={handleLogHarvest}
             onSelectBatchForQR={(b) => {
               setSelectedBatchId(b.id);
-              setCurrentView('bottle-sticker');
+              handleSelectView('bottle-sticker');
             }}
             onAnchorBatch={handleAnchorBatch}
             onToggleSimulatedStream={() => setIsStreamActive(!isStreamActive)}
             isStreamActive={isStreamActive}
             initialSelectedHiveId={selectedHiveIdForTelemetry}
-            onNavigateToApiaryMap={() => setCurrentView('apiary-map')}
+            onNavigateToApiaryMap={() => handleSelectView('apiary-map')}
           />
         )}
 
@@ -443,17 +395,17 @@ export default function App() {
             alerts={alerts}
             onSelectHiveForTelemetry={(hiveId) => {
               setSelectedHiveIdForTelemetry(hiveId);
-              setCurrentView('beekeeper');
+              handleSelectView('beekeeper');
             }}
             onLogHarvestForHive={(hive) => {
               setSelectedHiveIdForTelemetry(hive.id);
-              setCurrentView('beekeeper');
+              handleSelectView('beekeeper');
             }}
-            onNavigateToView={setCurrentView}
+            onNavigateToView={handleSelectView}
           />
         )}
 
-        {currentView === 'consumer' && (
+        {(currentView === 'consumer' || (currentView as any) === 'provenance') && (
           <ConsumerVerificationView
             batches={batches}
             selectedBatch={selectedBatch}
@@ -463,9 +415,9 @@ export default function App() {
             farmers={farmers}
             onNavigateToFarmer={(farmerId) => {
               setSelectedFarmerId(farmerId);
-              setCurrentView('farmer-passport');
+              handleSelectView('farmer-passport');
             }}
-            onOpenBottleSticker={() => setCurrentView('bottle-sticker')}
+            onOpenBottleSticker={() => handleSelectView('bottle-sticker')}
             onOpenStandalonePage={() => setIsStandaloneConsumer(true)}
           />
         )}

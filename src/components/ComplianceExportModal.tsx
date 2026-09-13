@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Hive, HoneyBatch, TelemetryDateRange } from '../types';
 import { exportComplianceCSV, exportCompliancePDF, ComplianceExportOptions } from '../utils/complianceExport';
 import {
@@ -6,6 +6,8 @@ import {
   FileSpreadsheet,
   Download,
   CheckCircle2,
+  AlertCircle,
+  RefreshCw,
   X,
   Layers,
   Calendar,
@@ -40,7 +42,16 @@ export function ComplianceExportModal({
   const [includeBlockchain, setIncludeBlockchain] = useState<boolean>(true);
   const [showPreview, setShowPreview] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [exportingFormat, setExportingFormat] = useState<'csv' | 'pdf' | null>(null);
   const [exportSuccessMsg, setExportSuccessMsg] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  // Sync selectedHiveId if parent passes or switches hive
+  useEffect(() => {
+    if (currentSelectedHiveId) {
+      setSelectedHiveId(currentSelectedHiveId);
+    }
+  }, [currentSelectedHiveId]);
 
   if (!isOpen) return null;
 
@@ -52,26 +63,37 @@ export function ComplianceExportModal({
     auditorOrganization: auditorOrg,
   };
 
-  const filteredHives = selectedHiveId === 'all' ? hives : hives.filter((h) => h.id === selectedHiveId);
-  const filteredBatches = selectedHiveId === 'all' ? batches : batches.filter((b) => b.hiveId === selectedHiveId);
+  const filteredHives = selectedHiveId === 'all'
+    ? hives
+    : hives.filter((h) => h.id === selectedHiveId || h.hiveCode === selectedHiveId);
+  const filteredBatches = selectedHiveId === 'all'
+    ? batches
+    : batches.filter((b) => b.hiveId === selectedHiveId || b.hiveCode === selectedHiveId);
 
-  const handleExport = (format: 'pdf' | 'csv') => {
+  const handleExport = async (format: 'pdf' | 'csv') => {
     setIsExporting(true);
+    setExportingFormat(format);
+    setExportError(null);
     setExportSuccessMsg(null);
+
+    // Yield control to let React render the spinner & loading status immediately
+    await new Promise((resolve) => setTimeout(resolve, 80));
 
     try {
       if (format === 'csv') {
         exportComplianceCSV(hives, batches, exportOptions);
-        setExportSuccessMsg('Compliance CSV exported successfully to your downloads.');
+        setExportSuccessMsg('Compliance CSV export started. File downloaded successfully.');
       } else {
         exportCompliancePDF(hives, batches, exportOptions);
-        setExportSuccessMsg('Official Compliance PDF generated and downloaded.');
+        setExportSuccessMsg('Official Compliance PDF generated and downloaded successfully.');
       }
-      setTimeout(() => setExportSuccessMsg(null), 5000);
-    } catch (err) {
+      setTimeout(() => setExportSuccessMsg(null), 7000);
+    } catch (err: any) {
       console.error('Export failed:', err);
+      setExportError(err?.message || 'Export generation failed. Please try again.');
     } finally {
       setIsExporting(false);
+      setExportingFormat(null);
     }
   };
 
@@ -111,10 +133,43 @@ export function ComplianceExportModal({
 
         {/* Modal Form Content */}
         <div className="p-5 sm:p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+          {/* Progress / Loading Feedback */}
+          {isExporting && (
+            <div
+              role="status"
+              aria-live="polite"
+              data-testid="export-loading-state"
+              className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs font-semibold flex items-center gap-2.5 shadow-xs animate-pulse"
+            >
+              <RefreshCw className="w-4 h-4 text-amber-600 animate-spin flex-shrink-0" />
+              <span>
+                Preparing and compiling {exportingFormat === 'csv' ? 'compliance CSV audit log' : 'official regulatory PDF dossier'}... Download starting momentarily.
+              </span>
+            </div>
+          )}
+
+          {/* Success Notification */}
           {exportSuccessMsg && (
-            <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center gap-2">
+            <div
+              role="status"
+              aria-live="polite"
+              data-testid="export-success-notification"
+              className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-950 text-xs font-semibold flex items-center gap-2.5 shadow-xs"
+            >
               <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
               <span>{exportSuccessMsg}</span>
+            </div>
+          )}
+
+          {/* Error Notification */}
+          {exportError && (
+            <div
+              role="alert"
+              data-testid="export-error-notification"
+              className="p-3.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-950 text-xs font-semibold flex items-center gap-2.5 shadow-xs"
+            >
+              <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+              <span>{exportError}</span>
             </div>
           )}
 
@@ -312,23 +367,33 @@ export function ComplianceExportModal({
             <button
               type="button"
               id="export-csv-btn"
+              data-testid="export-csv-btn"
               onClick={() => handleExport('csv')}
               disabled={isExporting}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 shadow-xs flex items-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+              className="px-4 py-2.5 rounded-xl text-xs font-bold bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 shadow-xs flex items-center gap-2 cursor-pointer transition-all disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              <span>Export CSV</span>
+              {isExporting && exportingFormat === 'csv' ? (
+                <RefreshCw className="w-4 h-4 text-emerald-600 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+              )}
+              <span>{isExporting && exportingFormat === 'csv' ? 'Exporting CSV...' : 'Export CSV'}</span>
             </button>
 
             <button
               type="button"
               id="export-pdf-btn"
+              data-testid="export-pdf-btn"
               onClick={() => handleExport('pdf')}
               disabled={isExporting}
-              className="px-5 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-md flex items-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-md flex items-center gap-2 cursor-pointer transition-all disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              <FileText className="w-4 h-4 text-slate-950" />
-              <span>{isExporting ? 'Generating...' : 'Export PDF Dossier'}</span>
+              {isExporting && exportingFormat === 'pdf' ? (
+                <RefreshCw className="w-4 h-4 text-slate-950 animate-spin" />
+              ) : (
+                <FileText className="w-4 h-4 text-slate-950" />
+              )}
+              <span>{isExporting && exportingFormat === 'pdf' ? 'Generating PDF...' : 'Export PDF Dossier'}</span>
               <Download className="w-3.5 h-3.5" />
             </button>
           </div>

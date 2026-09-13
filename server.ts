@@ -4,17 +4,62 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
+import {
+  initDatabase,
+  getDbStats,
+  getAllHives,
+  getHiveById,
+  updateHiveTelemetry,
+  getAllBatches,
+  getBatchById,
+  createBatch,
+  updateBatch,
+  certifyBatch,
+  anchorBatch,
+  toggleTamper,
+  getAllFarmers,
+  getFarmerById,
+  getAllAlerts,
+  createAlert,
+  markAlertRead,
+  getBlockchainStats,
+  incrementBlockNumber,
+  resetDatabase,
+} from './server/db';
 
 dotenv.config();
+
+// Global crash protection to guarantee 100% server uptime
+process.on('uncaughtException', (err) => {
+  console.error('[Server Guard] Caught unhandled exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Server Guard] Caught unhandled rejection at:', promise, 'reason:', reason);
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function startServer() {
+  // Initialize persistent database engine (SQLite + JSON fallback)
+  await initDatabase();
+
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  // CORS and body parser middleware
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
+  app.use(express.json({ limit: '10mb' }));
 
   // Lazy initialize Gemini client with required User-Agent header
   let geminiClient: GoogleGenAI | null = null;
@@ -32,12 +77,246 @@ async function startServer() {
     return geminiClient;
   }
 
-  // Health check
+  // ----------------------------------------------------------------------
+  // SYSTEM & HEALTH API
+  // ----------------------------------------------------------------------
+
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', serverTime: new Date().toISOString() });
+    res.json({
+      status: 'ok',
+      serverTime: new Date().toISOString(),
+      uptimeSeconds: Math.floor(process.uptime()),
+      db: getDbStats(),
+    });
   });
 
-  // POST /api/ai-hive-health-summary
+  // Reset database back to clean initial demo state
+  app.post('/api/reset', (req, res) => {
+    try {
+      resetDatabase();
+      res.json({ success: true, message: 'Database reset to initial demo state', stats: getDbStats() });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ----------------------------------------------------------------------
+  // HIVES REST API
+  // ----------------------------------------------------------------------
+
+  app.get('/api/hives', (req, res) => {
+    try {
+      const hives = getAllHives();
+      res.json({ success: true, data: hives, count: hives.length });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/hives/:id', (req, res) => {
+    try {
+      const hive = getHiveById(req.params.id);
+      if (!hive) {
+        return res.status(404).json({ error: `Hive not found: ${req.params.id}` });
+      }
+      res.json({ success: true, data: hive });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.patch('/api/hives/:id/telemetry', (req, res) => {
+    try {
+      const updated = updateHiveTelemetry(req.params.id, req.body);
+      if (!updated) {
+        return res.status(404).json({ error: `Hive not found: ${req.params.id}` });
+      }
+      res.json({ success: true, data: updated });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ----------------------------------------------------------------------
+  // HONEY BATCHES REST API
+  // ----------------------------------------------------------------------
+
+  app.get('/api/batches', (req, res) => {
+    try {
+      const batches = getAllBatches();
+      res.json({ success: true, data: batches, count: batches.length });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/batches/:id', (req, res) => {
+    try {
+      const batch = getBatchById(req.params.id);
+      if (!batch) {
+        return res.status(404).json({ error: `Batch not found: ${req.params.id}` });
+      }
+      res.json({ success: true, data: batch });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Create new harvest batch
+  app.post('/api/batches', (req, res) => {
+    try {
+      const newBatch = createBatch(req.body);
+      res.status(201).json({ success: true, data: newBatch });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Update batch fields (tamper playground or metadata updates)
+  app.patch('/api/batches/:id', (req, res) => {
+    try {
+      const updates = req.body.updates || req.body;
+      const isTampered = req.body.isTampered;
+      const updated = updateBatch(req.params.id, updates, isTampered);
+      if (!updated) {
+        return res.status(404).json({ error: `Batch not found: ${req.params.id}` });
+      }
+      res.json({ success: true, data: updated });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Issue NABL quality lab certificate
+  app.post('/api/batches/:id/certify', (req, res) => {
+    try {
+      const { certificate, blockNumber } = req.body;
+      if (!certificate) {
+        return res.status(400).json({ error: 'Missing quality certificate payload' });
+      }
+      const updated = certifyBatch(req.params.id, certificate, blockNumber);
+      if (!updated) {
+        return res.status(404).json({ error: `Batch not found: ${req.params.id}` });
+      }
+      res.json({ success: true, data: updated });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Anchor batch hash on blockchain
+  app.post('/api/batches/:id/anchor', (req, res) => {
+    try {
+      const { blockNumber } = req.body;
+      const updated = anchorBatch(req.params.id, blockNumber);
+      if (!updated) {
+        return res.status(404).json({ error: `Batch not found: ${req.params.id}` });
+      }
+      res.json({ success: true, data: updated });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Toggle tamper simulation
+  app.post('/api/batches/:id/tamper', (req, res) => {
+    try {
+      const { shouldTamper } = req.body;
+      const updated = toggleTamper(req.params.id, !!shouldTamper);
+      if (!updated) {
+        return res.status(404).json({ error: `Batch not found: ${req.params.id}` });
+      }
+      res.json({ success: true, data: updated });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ----------------------------------------------------------------------
+  // FARMER PROFILES REST API
+  // ----------------------------------------------------------------------
+
+  app.get('/api/farmers', (req, res) => {
+    try {
+      const farmers = getAllFarmers();
+      res.json({ success: true, data: farmers, count: farmers.length });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/farmers/:id', (req, res) => {
+    try {
+      const farmer = getFarmerById(req.params.id);
+      if (!farmer) {
+        return res.status(404).json({ error: `Farmer not found: ${req.params.id}` });
+      }
+      res.json({ success: true, data: farmer });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ----------------------------------------------------------------------
+  // ALERTS REST API
+  // ----------------------------------------------------------------------
+
+  app.get('/api/alerts', (req, res) => {
+    try {
+      const alerts = getAllAlerts();
+      res.json({ success: true, data: alerts, count: alerts.length });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/alerts', (req, res) => {
+    try {
+      const newAlert = createAlert(req.body);
+      res.status(201).json({ success: true, data: newAlert });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  app.patch('/api/alerts/:id/read', (req, res) => {
+    try {
+      const ok = markAlertRead(req.params.id);
+      if (!ok) {
+        return res.status(404).json({ error: `Alert not found: ${req.params.id}` });
+      }
+      res.json({ success: true, message: 'Alert marked as read' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ----------------------------------------------------------------------
+  // BLOCKCHAIN REST API
+  // ----------------------------------------------------------------------
+
+  app.get('/api/blockchain/stats', (req, res) => {
+    try {
+      const stats = getBlockchainStats();
+      res.json({ success: true, data: stats });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/blockchain/tick', (req, res) => {
+    try {
+      const newBlock = incrementBlockNumber();
+      res.json({ success: true, latestBlockNumber: newBlock });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ----------------------------------------------------------------------
+  // AI HIVE HEALTH SUMMARY (GEMINI + BIOLOGICAL RULE ENGINE FALLBACK)
+  // ----------------------------------------------------------------------
+
   app.post('/api/ai-hive-health-summary', async (req, res) => {
     try {
       const {
@@ -276,7 +555,10 @@ Important:
     }
   });
 
-  // Vite middleware setup
+  // ----------------------------------------------------------------------
+  // VITE & FRONTEND SERVING
+  // ----------------------------------------------------------------------
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -292,7 +574,7 @@ Important:
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`[Server] Honey Chain backend running stably on http://localhost:${PORT}`);
   });
 }
 

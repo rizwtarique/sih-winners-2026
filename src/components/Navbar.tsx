@@ -67,21 +67,28 @@ export function Navbar({
       {/* Main Navigation Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
         {/* Brand identity */}
-        <div
-          onClick={() => onSelectView('beekeeper')}
-          className="flex items-center gap-2.5 cursor-pointer"
-        >
-          <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-slate-950 font-black">
-            <ShieldCheck className="w-5 h-5 stroke-[2.5]" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-base text-white tracking-tight">Honey Chain</span>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                Provenance
-              </span>
+        <div className="flex items-center gap-2.5">
+          <div
+            onClick={() => onSelectView('beekeeper')}
+            className="flex items-center gap-2 cursor-pointer"
+            title="Honey Chain Dashboard"
+          >
+            <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-slate-950 font-black">
+              <ShieldCheck className="w-5 h-5 stroke-[2.5]" />
             </div>
+            <span className="font-bold text-base text-white tracking-tight">Honey Chain</span>
           </div>
+
+          <button
+            type="button"
+            id="nav-provenance-badge-btn"
+            data-testid="nav-provenance-control"
+            onClick={() => onSelectView('consumer')}
+            className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500 hover:text-slate-950 transition-colors cursor-pointer"
+            title="Open Provenance Dossier"
+          >
+            Provenance
+          </button>
         </div>
 
         {/* Primary View Switcher */}
@@ -124,15 +131,19 @@ export function Navbar({
           </button>
 
           <button
+            type="button"
+            id="nav-provenance-tab"
+            data-testid="nav-provenance"
             onClick={() => onSelectView('consumer')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              currentView === 'consumer'
-                ? 'bg-amber-500 text-slate-950'
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+              currentView === 'consumer' || (currentView as any) === 'provenance'
+                ? 'bg-amber-500 text-slate-950 shadow-xs'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
             }`}
+            title="Honey Batch Provenance & Consumer Verification Dossier"
           >
             <Smartphone className="w-3.5 h-3.5" />
-            <span>Consumer View</span>
+            <span>Provenance</span>
           </button>
 
           <button
@@ -250,12 +261,16 @@ export function Navbar({
           Sticker
         </button>
         <button
+          type="button"
+          data-testid="mobile-nav-provenance"
           onClick={() => onSelectView('consumer')}
-          className={`flex-shrink-0 px-2.5 py-1 rounded-md font-semibold ${
-            currentView === 'consumer' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'
+          className={`flex-shrink-0 px-2.5 py-1 rounded-md font-semibold cursor-pointer ${
+            currentView === 'consumer' || (currentView as any) === 'provenance'
+              ? 'bg-amber-500 text-slate-950'
+              : 'text-slate-400 hover:text-white'
           }`}
         >
-          Verify
+          Provenance
         </button>
         <button
           onClick={() => onSelectView('farmer-passport')}

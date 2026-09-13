@@ -594,12 +594,18 @@ export function BeekeeperView({
                   className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono font-bold text-sm text-slate-900">
                         {batch.batchCode}
                       </span>
                       <span className="text-xs font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-900">
                         {batch.honeyType}
+                      </span>
+                      <span
+                        data-testid="batch-moisture-badge"
+                        className="text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200"
+                      >
+                        Moisture: {batch.moisturePct !== undefined ? batch.moisturePct : (batch.certificate?.parameters.moisturePct ?? 18.2)}%
                       </span>
                       {batch.blockchainRecord?.status === 'CONFIRMED' ? (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
@@ -612,8 +618,18 @@ export function BeekeeperView({
                       )}
                     </div>
 
-                    <p className="text-xs text-slate-500">
-                      Harvested: {batch.harvestDate} · Net Weight: {batch.netWeightKg} kg · {batch.framesHarvested} Frames · {batch.hiveCode}
+                    <p className="text-xs text-slate-500 flex flex-wrap items-center gap-x-1.5">
+                      <span>Harvested: {batch.harvestDate}</span>
+                      <span>·</span>
+                      <span>Net Weight: {batch.netWeightKg} kg</span>
+                      <span>·</span>
+                      <span>{batch.framesHarvested} Frames</span>
+                      <span>·</span>
+                      <span className="font-medium text-slate-700" data-testid="batch-moisture-text">
+                        Moisture: {batch.moisturePct !== undefined ? batch.moisturePct : (batch.certificate?.parameters.moisturePct ?? 18.2)}%
+                      </span>
+                      <span>·</span>
+                      <span>{batch.hiveCode}</span>
                     </p>
 
                     {(batch.processingNotes || batch.events?.find((e) => e.eventType === 'HARVEST')?.details) && (

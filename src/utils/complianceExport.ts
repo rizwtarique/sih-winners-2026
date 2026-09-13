@@ -57,7 +57,9 @@ export function exportComplianceCSV(
       escapeCSV('Humidity Alert Flag'),
     ].join(','));
 
-    const filteredHives = options.hiveId === 'all' ? hives : hives.filter((h) => h.id === options.hiveId);
+    const filteredHives = options.hiveId === 'all'
+      ? hives
+      : hives.filter((h) => h.id === options.hiveId || h.hiveCode === options.hiveId);
 
     filteredHives.forEach((hive) => {
       const telemetryPts = generateTelemetryForRange(hive, options.dateRange);
@@ -112,7 +114,7 @@ export function exportComplianceCSV(
 
     const filteredBatches = options.hiveId === 'all'
       ? batches
-      : batches.filter((b) => b.hiveId === options.hiveId);
+      : batches.filter((b) => b.hiveId === options.hiveId || b.hiveCode === options.hiveId);
 
     filteredBatches.forEach((batch) => {
       lines.push([
@@ -126,7 +128,7 @@ export function exportComplianceCSV(
         escapeCSV(`${batch.district}, ${batch.state}`),
         escapeCSV(batch.beekeeperName),
         escapeCSV(batch.certificate?.standardName || 'FSSAI Standard Honey / ISO 17025'),
-        escapeCSV(batch.certificate?.parameters.moisturePct ?? '17.8%'),
+        escapeCSV(batch.certificate?.parameters.moisturePct ?? (batch.moisturePct ? `${batch.moisturePct}%` : '17.8%')),
         escapeCSV(batch.certificate?.parameters.hmfMgKg ?? '14.2'),
         escapeCSV(batch.certificate?.parameters.overallResult || 'PASS'),
         escapeCSV(batch.blockchainRecord?.status || 'CONFIRMED'),
@@ -136,16 +138,35 @@ export function exportComplianceCSV(
     });
   }
 
-  // Trigger download via Blob
-  const csvBlob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const downloadUrl = URL.createObjectURL(csvBlob);
-  const link = document.createElement('a');
-  link.href = downloadUrl;
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(downloadUrl);
+  // Trigger download with robust browser & headless test compatibility
+  const csvText = lines.join('\r\n');
+  try {
+    const csvBlob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+    const downloadUrl = URL.createObjectURL(csvBlob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.setAttribute('download', filename);
+    link.setAttribute('data-testid', 'compliance-csv-download-link');
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      try {
+        if (link.parentNode) link.parentNode.removeChild(link);
+        URL.revokeObjectURL(downloadUrl);
+      } catch (e) {}
+    }, 10000);
+  } catch (blobErr) {
+    // Data URI fallback for environments restricting blob URLs
+    const encodedUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvText);
+    const link = document.createElement('a');
+    link.href = encodedUri;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      if (link.parentNode) link.parentNode.removeChild(link);
+    }, 1000);
+  }
 }
 
 /**
@@ -212,9 +233,13 @@ export function exportCompliancePDF(
   doc.setDrawColor(226, 232, 240);
   doc.roundedRect(14, currentY, 182, 20, 2, 2, 'FD');
 
-  const filteredHives = options.hiveId === 'all' ? hives : hives.filter((h) => h.id === options.hiveId);
-  const filteredBatches = options.hiveId === 'all' ? batches : batches.filter((b) => b.hiveId === options.hiveId);
-  const totalHarvestKg = filteredBatches.reduce((acc, b) => acc + b.netWeightKg, 0);
+  const filteredHives = options.hiveId === 'all'
+    ? hives
+    : hives.filter((h) => h.id === options.hiveId || h.hiveCode === options.hiveId);
+  const filteredBatches = options.hiveId === 'all'
+    ? batches
+    : batches.filter((b) => b.hiveId === options.hiveId || b.hiveCode === options.hiveId);
+  const totalHarvestKg = filteredBatches.reduce((acc, b) => acc + (b.netWeightKg || 0), 0);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
@@ -245,7 +270,7 @@ export function exportCompliancePDF(
       b.harvestDate,
       b.honeyType,
       `${b.netWeightKg} kg`,
-      b.certificate ? `${b.certificate.parameters.moisturePct}%` : '17.8%',
+      b.certificate ? `${b.certificate.parameters.moisturePct}%` : (b.moisturePct ? `${b.moisturePct}%` : '17.8%'),
       b.certificate ? b.certificate.parameters.overallResult : 'PASS',
       b.blockchainRecord?.status === 'CONFIRMED' ? 'VERIFIED ON-CHAIN' : 'PENDING',
       b.blockchainRecord?.txHash ? b.blockchainRecord.txHash.substring(0, 10) + '...' : '0x4f88...e91a',
@@ -256,7 +281,7 @@ export function exportCompliancePDF(
       head: [
         ['Batch Code', 'Hive', 'Harvest Date', 'Flora', 'Weight', 'Moisture', 'Lab QC', 'Blockchain', 'Tx Hash'],
       ],
-      body: harvestRows,
+      body: harvestRows.length > 0 ? harvestRows : [['N/A', 'N/A', 'N/A', 'No batches in scope', '0 kg', 'N/A', 'N/A', 'N/A', 'N/A']],
       theme: 'grid',
       headStyles: {
         fillColor: [15, 23, 42],
@@ -283,8 +308,8 @@ export function exportCompliancePDF(
       margin: { left: 14, right: 14 },
     });
 
-    // Update currentY after table
-    currentY = (doc as any).lastAutoTable.finalY + 10;
+    // Update currentY after table safely
+    currentY = ((doc as any).lastAutoTable?.finalY ?? currentY) + 10;
   }
 
   // Check if we need page break before telemetry
@@ -332,7 +357,7 @@ export function exportCompliancePDF(
       head: [
         ['Hive', 'Timestamp', 'Brood Temp', 'Temp Status', 'Humidity', 'Moisture Status', 'Weight', 'Acoustic', 'Sensor'],
       ],
-      body: telemetryRows,
+      body: telemetryRows.length > 0 ? telemetryRows : [['N/A', 'N/A', 'N/A', 'No telemetry records', 'N/A', 'N/A', 'N/A', 'N/A', 'N/A']],
       theme: 'grid',
       headStyles: {
         fillColor: [217, 119, 6], // Amber 600
@@ -359,7 +384,7 @@ export function exportCompliancePDF(
       margin: { left: 14, right: 14 },
     });
 
-    currentY = (doc as any).lastAutoTable.finalY + 12;
+    currentY = ((doc as any).lastAutoTable?.finalY ?? currentY) + 12;
   }
 
   // COMPLIANCE ATTESTATION & SIGNATURE FOOTER
@@ -394,8 +419,11 @@ export function exportCompliancePDF(
   doc.text('Audited Officer Signature: _______________________', 18, currentY + 26);
   doc.text('Seal / Stamp: [ HONEY CHAIN AUDIT VERIFIED ]', 120, currentY + 26);
 
-  // Page numbering footer on all pages
-  const pageCount = (doc as any).internal.getNumberOfPages();
+  // Page numbering footer on all pages safely
+  const pageCount = typeof (doc as any).getNumberOfPages === 'function'
+    ? (doc as any).getNumberOfPages()
+    : ((doc as any).internal?.getNumberOfPages?.() || (doc as any).internal?.pages?.length - 1 || 1);
+
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
     doc.setFontSize(7);
@@ -404,7 +432,26 @@ export function exportCompliancePDF(
   }
 
   const timestampStr = new Date().toISOString().replace(/[:.]/g, '-');
-  doc.save(`HoneyChain_Compliance_Report_${options.scope}_${timestampStr}.pdf`);
+  const pdfFilename = `HoneyChain_Compliance_Report_${options.scope}_${timestampStr}.pdf`;
+
+  try {
+    doc.save(pdfFilename);
+  } catch (saveErr) {
+    // Fallback using Blob / ObjectURL if doc.save is restricted in test sandbox
+    const pdfBlob = doc.output('blob');
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    const link = document.createElement('a');
+    link.href = pdfUrl;
+    link.setAttribute('download', pdfFilename);
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      try {
+        if (link.parentNode) link.parentNode.removeChild(link);
+        URL.revokeObjectURL(pdfUrl);
+      } catch (e) {}
+    }, 10000);
+  }
 }
 
 /**

@@ -5,7 +5,7 @@
 
 export type UserRole = 'beekeeper' | 'consumer' | 'lab' | 'admin';
 
-export type AppView = UserRole | 'tamper-demo' | 'learning-hub' | 'apiary-map' | 'farmer-passport' | 'print-sticker' | 'bottle-sticker';
+export type AppView = UserRole | 'tamper-demo' | 'learning-hub' | 'apiary-map' | 'farmer-passport' | 'print-sticker' | 'bottle-sticker' | 'provenance';
 
 export interface FarmerProfile {
   id: string; // e.g. "KVIC-FARMER-8841"

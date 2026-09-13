@@ -13,8 +13,10 @@ import {
   ExternalLink,
   TrendingUp,
   Radio,
+  FileDown,
 } from 'lucide-react';
 import { formatHexShort } from '../utils/crypto';
+import { ComplianceExportModal } from './ComplianceExportModal';
 
 interface AdminKvicViewProps {
   batches: HoneyBatch[];
@@ -31,33 +33,54 @@ export function AdminKvicView({
 }: AdminKvicViewProps) {
   type Section = 'metrics' | 'ledger' | 'alerts';
   const [activeSection, setActiveSection] = useState<Section>('metrics');
+  const [isComplianceModalOpen, setIsComplianceModalOpen] = useState(false);
+  const [csvToast, setCsvToast] = useState<string | null>(null);
 
   const totalKg = batches.reduce((acc, b) => acc + b.netWeightKg, 0);
   const certifiedCount = batches.filter((b) => !!b.certificate).length;
   const certifiedPct = Math.round((certifiedCount / (batches.length || 1)) * 100);
 
   const handleExportCSV = () => {
-    const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      ['BatchCode,HoneyType,NetWeightKg,HarvestDate,Beekeeper,Status,OnChainTx']
-        .concat(
-          batches.map(
-            (b) =>
-              `${b.batchCode},"${b.honeyType}",${b.netWeightKg},${b.harvestDate},"${b.beekeeperName}",${b.status},${b.blockchainRecord?.txHash || 'PENDING'}`
+    try {
+      const csvContent =
+        'data:text/csv;charset=utf-8,' +
+        ['BatchCode,HoneyType,NetWeightKg,HarvestDate,Beekeeper,Status,OnChainTx']
+          .concat(
+            batches.map(
+              (b) =>
+                `${b.batchCode},"${b.honeyType}",${b.netWeightKg},${b.harvestDate},"${b.beekeeperName}",${b.status},${b.blockchainRecord?.txHash || 'PENDING'}`
+            )
           )
-        )
-        .join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `honeychain_kvic_report_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+          .join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `honeychain_kvic_report_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (link.parentNode) link.parentNode.removeChild(link);
+      }, 1000);
+      setCsvToast('KVIC CSV report exported successfully.');
+      setTimeout(() => setCsvToast(null), 5000);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
+      {csvToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-950 text-xs font-semibold flex items-center gap-2 shadow-xs"
+        >
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+          <span>{csvToast}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-slate-900 text-white p-5 rounded-xl border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -76,13 +99,29 @@ export function AdminKvicView({
           </p>
         </div>
 
-        <button
-          onClick={handleExportCSV}
-          className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold px-3.5 py-2 rounded-lg text-xs transition-colors cursor-pointer self-start md:self-auto"
-        >
-          <Download className="w-3.5 h-3.5" />
-          <span>Export KVIC CSV</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto">
+          <button
+            type="button"
+            id="open-compliance-export-btn"
+            data-testid="export-kvic-report-btn"
+            onClick={() => setIsComplianceModalOpen(true)}
+            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 font-semibold px-3.5 py-2 rounded-lg text-xs transition-colors cursor-pointer"
+            title="Open full regulatory compliance dossier modal"
+          >
+            <FileDown className="w-3.5 h-3.5 text-amber-400" />
+            <span>Export Regulatory Dossier</span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="export-kvic-csv-btn"
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold px-3.5 py-2 rounded-lg text-xs transition-colors cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Export KVIC CSV</span>
+          </button>
+        </div>
       </div>
 
       {/* Section Navigation Tabs */}
@@ -310,6 +349,14 @@ export function AdminKvicView({
           </div>
         </div>
       )}
+
+      {/* Modal: Export Regulatory Compliance Dossier */}
+      <ComplianceExportModal
+        isOpen={isComplianceModalOpen}
+        onClose={() => setIsComplianceModalOpen(false)}
+        hives={hives}
+        batches={batches}
+      />
     </div>
   );
 }

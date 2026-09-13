@@ -605,6 +605,8 @@ export const INITIAL_BATCHES: HoneyBatch[] = [
     harvestDate: '2026-09-08',
     packagingDate: '2026-09-11',
     status: 'PACKAGED',
+    moisturePct: 17.8,
+    processingNotes: 'Centrifugal cold extraction, 80-mesh stainless steel filtered, raw enzyme preserved',
     qrToken: 'hc_tok_9a8f4c21e7b3',
     qrUrl: 'https://honeychain.org/verify/hc_tok_9a8f4c21e7b3',
     events: [
@@ -724,6 +726,8 @@ export const INITIAL_BATCHES: HoneyBatch[] = [
     harvestDate: '2026-09-11',
     packagingDate: 'Estimated 2026-09-15',
     status: 'LAB_TESTED',
+    moisturePct: 18.5,
+    processingNotes: 'Standard cold filtration, gravity settled for 48 hours',
     qrToken: 'hc_tok_5b7e9a12c4d8',
     qrUrl: 'https://honeychain.org/verify/hc_tok_5b7e9a12c4d8',
     events: [
@@ -771,6 +775,8 @@ export const INITIAL_BATCHES: HoneyBatch[] = [
     harvestDate: '2026-09-02',
     packagingDate: '2026-09-06',
     status: 'PACKAGED',
+    moisturePct: 18.2,
+    processingNotes: 'Centrifugal extraction, unheated single-origin raw honey',
     qrToken: 'hc_tok_demo_tamper',
     qrUrl: 'https://honeychain.org/verify/hc_tok_demo_tamper',
     events: [
