@@ -13,6 +13,9 @@ import {
   Map,
   Camera,
   Award,
+  Printer,
+  QrCode,
+  Tag,
 } from 'lucide-react';
 import { AppView } from '../types';
 
@@ -108,6 +111,19 @@ export function Navbar({
           </button>
 
           <button
+            onClick={() => onSelectView('bottle-sticker')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              currentView === 'bottle-sticker' || currentView === 'print-sticker'
+                ? 'bg-amber-500 text-slate-950'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+            }`}
+            title="Generate Printable Honey Bottle QR Stickers"
+          >
+            <Tag className="w-3.5 h-3.5" />
+            <span>Bottle Sticker</span>
+          </button>
+
+          <button
             onClick={() => onSelectView('consumer')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
               currentView === 'consumer'
@@ -116,7 +132,7 @@ export function Navbar({
             }`}
           >
             <Smartphone className="w-3.5 h-3.5" />
-            <span>Consumer QR</span>
+            <span>Consumer View</span>
           </button>
 
           <button
@@ -224,6 +240,14 @@ export function Navbar({
           }`}
         >
           Map
+        </button>
+        <button
+          onClick={() => onSelectView('bottle-sticker')}
+          className={`flex-shrink-0 px-2.5 py-1 rounded-md font-semibold ${
+            currentView === 'bottle-sticker' ? 'bg-amber-500 text-slate-950' : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          Sticker
         </button>
         <button
           onClick={() => onSelectView('consumer')}

@@ -26,7 +26,7 @@ export function PrintStickerView({ batch, onBack }: PrintStickerViewProps) {
     const generateQR = async () => {
       try {
         const url = typeof window !== 'undefined'
-          ? `${window.location.origin}${window.location.pathname}?batch=${encodeURIComponent(batch.batchCode)}&view=consumer`
+          ? `${window.location.origin}${window.location.pathname}?batch=${encodeURIComponent(batch.batchCode)}&mode=consumer-standalone`
           : batch.qrUrl;
 
         const dataUrl = await QRCode.toDataURL(url, {

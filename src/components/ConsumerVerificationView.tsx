@@ -44,6 +44,8 @@ interface ConsumerVerificationViewProps {
   isTampered: boolean;
   farmers?: FarmerProfile[];
   onNavigateToFarmer?: (farmerId: string) => void;
+  onOpenBottleSticker?: () => void;
+  onOpenStandalonePage?: () => void;
 }
 
 export function ConsumerVerificationView({
@@ -54,12 +56,18 @@ export function ConsumerVerificationView({
   isTampered,
   farmers = [],
   onNavigateToFarmer,
+  onOpenBottleSticker,
+  onOpenStandalonePage,
 }: ConsumerVerificationViewProps) {
   const [copiedHash, setCopiedHash] = useState(false);
   const [showPrintLabel, setShowPrintLabel] = useState(true);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   type Section = 'status' | 'lab' | 'farmer' | 'journey';
   const [activeSection, setActiveSection] = useState<Section>('status');
+
+  const standaloneUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}${window.location.pathname}?batch=${encodeURIComponent(selectedBatch.batchCode)}&mode=consumer-standalone`
+    : `https://honeychain.gov.in/verify/${selectedBatch.batchCode}`;
 
   // Match farmer details for this batch
   const farmer =
@@ -124,13 +132,57 @@ export function ConsumerVerificationView({
         </div>
       </div>
 
-      {/* Camera / Image QR Scanner Modal */}
-      <QRScannerModal
-        isOpen={isScannerOpen}
-        onClose={() => setIsScannerOpen(false)}
-        batches={batches}
-        onSelectBatch={onSelectBatch}
-      />
+      {/* Retail Bottle Sticker & Dedicated Consumer Dossier PDF Banner */}
+      <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-white rounded-xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🏷️</span>
+            <span className="font-extrabold text-sm tracking-tight text-white">
+              Retail Bottle Sticker &amp; Official Batch &amp; Farmer PDF
+            </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-950/30 text-amber-100 border border-white/20 font-bold">
+              PUBLIC QR
+            </span>
+          </div>
+          <p className="text-xs text-amber-100 max-w-xl">
+            Want to stick this QR on physical honey jars? The bottle QR code leads directly to the official Honey Batch &amp; Farmer PDF dossier with full provenance details and instant 1-click download.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+          {onOpenStandalonePage && (
+            <button
+              type="button"
+              onClick={onOpenStandalonePage}
+              className="flex items-center gap-1.5 bg-slate-950 hover:bg-slate-900 text-amber-400 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer shadow-xs"
+            >
+              <FileText className="w-3.5 h-3.5 text-amber-400" />
+              <span>View Batch &amp; Farmer PDF</span>
+            </button>
+          )}
+
+          {onOpenBottleSticker && (
+            <button
+              type="button"
+              onClick={onOpenBottleSticker}
+              className="flex items-center gap-1.5 bg-white hover:bg-slate-100 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer shadow-xs"
+            >
+              <Printer className="w-3.5 h-3.5 text-amber-700" />
+              <span>Bottle Sticker Studio</span>
+            </button>
+          )}
+
+          <a
+            href={standaloneUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 bg-amber-800/60 hover:bg-amber-800 text-white font-semibold px-2.5 py-1.5 rounded-lg text-xs transition-colors cursor-pointer"
+            title="Open in new window"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
+      </div>
 
       {/* Section Navigation Tabs */}
       <div className="flex border-b border-slate-200 bg-white rounded-xl p-1 shadow-xs overflow-x-auto scrollbar-none gap-1">

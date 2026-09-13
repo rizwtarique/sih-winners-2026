@@ -36,7 +36,7 @@ export function QRCodeCard({
   const getVerificationUrl = () => {
     if (typeof window !== 'undefined' && useLiveUrl) {
       const base = `${window.location.origin}${window.location.pathname}`;
-      return `${base}?batch=${encodeURIComponent(batch.batchCode)}&view=consumer`;
+      return `${base}?batch=${encodeURIComponent(batch.batchCode)}&mode=consumer-standalone`;
     }
     return batch.qrUrl || `https://honeychain.gov.in/verify/${batch.batchCode}`;
   };

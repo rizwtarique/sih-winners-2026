@@ -13,10 +13,13 @@ import { LearningHubView } from './components/LearningHubView';
 import { DemoScenarioModal } from './components/DemoScenarioModal';
 import { QRScannerModal } from './components/QRScannerModal';
 import { PrintStickerView } from './components/PrintStickerView';
+import { BottleStickerStudio } from './components/BottleStickerStudio';
+import { ConsumerPdfView } from './components/ConsumerPdfView';
 import { computeBatchCommitmentHash } from './utils/crypto';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<AppView>('beekeeper');
+  const [isStandaloneConsumer, setIsStandaloneConsumer] = useState<boolean>(false);
   const [hives, setHives] = useState<Hive[]>(INITIAL_HIVES);
   const [batches, setBatches] = useState<HoneyBatch[]>(INITIAL_BATCHES);
   const [farmers, setFarmers] = useState<FarmerProfile[]>(MOCK_FARMERS);
@@ -37,8 +40,10 @@ export default function App() {
       const batchParam = params.get('batch') || params.get('verify') || params.get('code');
       const farmerParam = params.get('farmer') || params.get('farmerId');
       const viewParam = params.get('view') as AppView | null;
+      const modeParam = params.get('mode');
+      const isStandaloneMode = modeParam === 'consumer-standalone' || params.get('page') === 'consumer' || params.get('standalone') === 'true';
 
-      if (viewParam === 'print-sticker') {
+      if (isStandaloneMode) {
         if (batchParam) {
           const found = batches.find(
             (b) =>
@@ -50,7 +55,20 @@ export default function App() {
             setSelectedBatchId(found.id);
           }
         }
-        setCurrentView('print-sticker');
+        setIsStandaloneConsumer(true);
+      } else if (viewParam === 'print-sticker' || viewParam === 'bottle-sticker') {
+        if (batchParam) {
+          const found = batches.find(
+            (b) =>
+              b.batchCode.toLowerCase() === batchParam.toLowerCase() ||
+              b.id.toLowerCase() === batchParam.toLowerCase() ||
+              b.qrToken.toLowerCase() === batchParam.toLowerCase()
+          );
+          if (found) {
+            setSelectedBatchId(found.id);
+          }
+        }
+        setCurrentView('bottle-sticker');
       } else if (farmerParam) {
         const foundFarmer = farmers.find(
           (f) =>
@@ -364,6 +382,30 @@ export default function App() {
     );
   };
 
+  const relatedHive = hives.find(
+    (h) => h.id === selectedBatch?.hiveId || h.hiveCode === selectedBatch?.hiveCode
+  );
+  const relatedFarmer =
+    farmers.find(
+      (f) =>
+        f.name === selectedBatch?.beekeeperName ||
+        f.id === selectedBatch?.farmerId
+    ) || farmers[0];
+
+  // If consumer opened via QR scan or requested standalone mode, render ONLY the dedicated PDF dossier with download option
+  if (isStandaloneConsumer && selectedBatch) {
+    return (
+      <ConsumerPdfView
+        batch={selectedBatch}
+        hive={relatedHive}
+        farmer={relatedFarmer}
+        allBatches={batches}
+        onSelectBatch={(b) => setSelectedBatchId(b.id)}
+        onBackToPortal={() => setIsStandaloneConsumer(false)}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-amber-400 selection:text-slate-950">
       {/* Top Application Navbar */}
@@ -385,7 +427,7 @@ export default function App() {
             onLogHarvest={handleLogHarvest}
             onSelectBatchForQR={(b) => {
               setSelectedBatchId(b.id);
-              setCurrentView('consumer');
+              setCurrentView('bottle-sticker');
             }}
             onAnchorBatch={handleAnchorBatch}
             onToggleSimulatedStream={() => setIsStreamActive(!isStreamActive)}
@@ -423,6 +465,8 @@ export default function App() {
               setSelectedFarmerId(farmerId);
               setCurrentView('farmer-passport');
             }}
+            onOpenBottleSticker={() => setCurrentView('bottle-sticker')}
+            onOpenStandalonePage={() => setIsStandaloneConsumer(true)}
           />
         )}
 
@@ -435,7 +479,7 @@ export default function App() {
             hives={hives}
             onNavigateToBatch={(batchId) => {
               setSelectedBatchId(batchId);
-              setCurrentView('consumer');
+              setCurrentView('bottle-sticker');
             }}
             onNavigateView={setCurrentView}
           />
@@ -467,10 +511,16 @@ export default function App() {
 
         {currentView === 'learning-hub' && <LearningHubView />}
 
-        {currentView === 'print-sticker' && (
-          <PrintStickerView
-            batch={selectedBatch}
-            onBack={() => setCurrentView('consumer')}
+        {(currentView === 'bottle-sticker' || currentView === 'print-sticker') && (
+          <BottleStickerStudio
+            batches={batches}
+            hives={hives}
+            farmers={farmers}
+            initialBatchId={selectedBatchId}
+            onOpenConsumerPage={(b) => {
+              setSelectedBatchId(b.id);
+              setIsStandaloneConsumer(true);
+            }}
           />
         )}
       </main>
